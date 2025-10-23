@@ -5,7 +5,6 @@ autoinstall:
   locale: pt_BR.UTF-8
   keyboard:
     layout: br
-    variant: abnt2
 
   timezone: America/Sao_Paulo
 
@@ -19,22 +18,6 @@ autoinstall:
   # ===============================================
   # LÓGICA PARA NOMEAR MAQUINAS
   # ===============================================
-
-  # Setores: 
-  # # IMPLANTAÇÃO = implat 
-  # # PRODUÇÃO = prod 
-  # # SUPORTE = sup 
-  # # COMERCIAL = com 
-  # # AMINSTRATIVO / RH = admr 
-  # # Desnvolvimento = dev 
-  
-  # Tipos de maquinas: 
-  # # Estações de trabalho = workstation 
-  # # Servidor = server 
-  # # Kiosk (TVs) = kiosk 
-  
-  # Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
-
   identity:
     hostname: implant-workstation-01
     username: admings
@@ -69,52 +52,53 @@ autoinstall:
     - hunspell-pt-br
 
   # ===============================================
-  # APLICAR ARQUIVOS (POLKIT E SCRIPT DE LOGIN)
+  # APLICAR ARQUIVOS
   # ===============================================
-  write_files:
-    - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
-      permissions: 0644
-      owner: root:root
-      content: |
-        /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
-        polkit.addRule(function(action, subject) {
-            if ((action.id == "org.freedesktop.login1.power-off" ||
-                 action.id == "org.freedesktop.login1.reboot") &&
-                subject.isInGroup("powerusers")) {
-                return polkit.Result.YES;
-            }
-        });
+  user-data:
+    write_files:
+      - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
+        permissions: 0644
+        owner: root:root
+        content: |
+          /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
+          polkit.addRule(function(action, subject) {
+              if ((action.id == "org.freedesktop.login1.power-off" ||
+                   action.id == "org.freedesktop.login1.reboot") &&
+                  subject.isInGroup("powerusers")) {
+                  return polkit.Result.YES;
+              }
+          });
 
-    - path: /usr/local/bin/setup-user-repo.sh
-      permissions: 0755
-      owner: root:root
-      content: |
-        #!/bin/bash
-        LOCK_FILE="$HOME/.config/repo_setup_complete"
-        if [ ! -f "$LOCK_FILE" ]; then
-            REPO_URL="https://github.com/giusoft/FreeIPA.git"
-            DEST_DIR="$HOME/minhas-configs"
-            /usr/bin/git clone --branch rustdesk --single-branch "$REPO_URL" "$DEST_DIR"
-            if [ $? -eq 0 ]; then
-                mkdir -p "$HOME/.config"
-                touch "$LOCK_FILE"
-            fi
-        fi
+      - path: /usr/local/bin/setup-user-repo.sh
+        permissions: 0755
+        owner: root:root
+        content: |
+          #!/bin/bash
+          LOCK_FILE="$HOME/.config/repo_setup_complete"
+          if [ ! -f "$LOCK_FILE" ]; then
+              REPO_URL="https://github.com/giusoft/FreeIPA.git"
+              DEST_DIR="$HOME/minhas-configs"
+              /usr/bin/git clone --branch rustdesk --single-branch "$REPO_URL" "$DEST_DIR"
+              if [ $? -eq 0 ]; then
+                  mkdir -p "$HOME/.config"
+                  touch "$LOCK_FILE"
+              fi
+          fi
 
-    - path: /etc/skel/.config/autostart/setup-repo.desktop
-      permissions: 0644
-      owner: root:root
-      content: |
-        [Desktop Entry]
-        Type=Application
-        Name=Setup Inicial do Repositório
-        Comment=Clona o repositório de configurações no primeiro login
-        Exec=/usr/local/bin/setup-user-repo.sh
-        Terminal=false
-        Hidden=false
+      - path: /etc/skel/.config/autostart/setup-repo.desktop
+        permissions: 0644
+        owner: root:root
+        content: |
+          [Desktop Entry]
+          Type=Application
+          Name=Setup Inicial do Repositório
+          Comment=Clona o repositório de configurações no primeiro login
+          Exec=/usr/local/bin/setup-user-repo.sh
+          Terminal=false
+          Hidden=false
 
   # ===============================================
-  # COMANDOS PÓS-INSTALAÇÃO (AGORA COMO LATE-COMMANDS)
+  # PÓS-INSTALAÇÃO 
   # ===============================================
   late-commands:
     # Configura o repositório do RustDesk
