@@ -57,7 +57,7 @@ autoinstall:
   user-data:
     write_files:
       - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
-        permissions: 0644
+        permissions: '0644'
         owner: root:root
         content: |
           /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
@@ -70,7 +70,7 @@ autoinstall:
           });
 
       - path: /usr/local/bin/setup-user-repo.sh
-        permissions: 0755
+        permissions: '0755'
         owner: root:root
         content: |
           #!/bin/bash
@@ -86,7 +86,7 @@ autoinstall:
           fi
 
       - path: /etc/skel/.config/autostart/setup-repo.desktop
-        permissions: 0644
+        permissions: '0644'
         owner: root:root
         content: |
           [Desktop Entry]
