@@ -105,14 +105,19 @@ autoinstall:
     - curtin in-target -- /bin/sh -c "wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg"
     - curtin in-target -- /bin/sh -c 'echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list'
     
-    # 4. Aceita o EULA das fontes Microsoft
+    # 4. Configura o repositório do Google Chrome
+    - curtin in-target -- /bin/sh -c "wget -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg"
+    - curtin in-target -- /bin/sh -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
+
+    # 5. Aceita o EULA das fontes Microsoft
     - curtin in-target -- /bin/sh -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
     
-    # 5. Atualiza o apt de novo para incluir o repo do RustDesk
+    # 6. Atualiza o apt de novo para incluir os novos repositórios
     - curtin in-target -- apt update
     
-    # 6. Instala todos os pacotes de uma vez
+    # 7. Instala todos os pacotes de uma vez
     - curtin in-target -- apt install -y \
+        google-chrome-stable \
         git \
         vim \
         openssh-server \
@@ -135,14 +140,14 @@ autoinstall:
         hunspell-pt-br \
         rustdesk
 
-    # 7. Cria o grupo powerusers
+    # 8. Cria o grupo powerusers
     - curtin in-target -- groupadd powerusers
 
-    # 8. Habilita SSH
+    # 9. Habilita SSH
     - curtin in-target -- systemctl enable --now ssh
 
-    # 9. Instala o Tailscale via script oficial
+    # 10. Instala o Tailscale via script oficial
     - curtin in-target -- /bin/sh -c "curl -fsSL https://tailscale.com/install.sh | sh"
     
-    # 10. Ativa e inicia o serviço Tailscale
+    # 11. Ativa e inicia o serviço Tailscale
     - curtin in-target -- systemctl enable --now tailscaled
