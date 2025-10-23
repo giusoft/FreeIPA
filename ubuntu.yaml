@@ -99,23 +99,18 @@ autoinstall:
     
     # 2. Instala ferramentas essenciais para os próximos passos
     - curtin in-target -- apt install -y wget gpg curl
-
-    # 3. Configura o repositório do RustDesk
-    - curtin in-target -- install -m 0755 -d /etc/apt/keyrings
-    - curtin in-target -- /bin/sh -c "wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg"
-    - curtin in-target -- /bin/sh -c 'echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list'
     
-    # 4. Configura o repositório do Google Chrome
+    # 3. Configura o repositório do Google Chrome
     - curtin in-target -- /bin/sh -c "wget -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg"
     - curtin in-target -- /bin/sh -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
 
-    # 5. Aceita o EULA das fontes Microsoft
+    # 4. Aceita o EULA das fontes Microsoft
     - curtin in-target -- /bin/sh -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
     
-    # 6. Atualiza o apt de novo para incluir os novos repositórios
+    # 5. Atualiza o apt de novo para incluir o repo do Chrome
     - curtin in-target -- apt update
     
-    # 7. Instala todos os pacotes de uma vez
+    # 6. Instala todos os pacotes de uma vez (sem RustDesk)
     - curtin in-target -- apt install -y \
         google-chrome-stable \
         git \
@@ -137,8 +132,11 @@ autoinstall:
         flatpak \
         libreoffice-l10n-pt-br \
         libreoffice-help-pt-br \
-        hunspell-pt-br \
-        rustdesk
+        hunspell-pt-br
+
+    # 7. Baixa e instala o RustDesk .deb
+    - curtin in-target -- wget https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb -O /tmp/rustdesk.deb
+    - curtin in-target -- apt install -y /tmp/rustdesk.deb
 
     # 8. Cria o grupo powerusers
     - curtin in-target -- groupadd powerusers
