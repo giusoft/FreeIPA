@@ -40,7 +40,7 @@ autoinstall:
   identity:
     hostname: implant-workstation-01
     username: admings
-    password: "Vchar3300!"
+    password: "$6$kO6Dl0JIi4pLithw$YuWkSmm3m0PSO2fbJ7P6dF7hNV6AuFKgTXbFJoSRnJNvsvokFZG.yLjOOeQZznlz487YvDAN9U2Q3HPy9SE7Y/"
 
   # ===============================================
   # PACOTES
