@@ -152,4 +152,4 @@ autoinstall:
         dhcp4-overrides:
           use-dns: false
         nameservers:
-          addresses: [192.168.1.199]
+          addresses: [192.168.1.199, 1.1.1.1, 8.8.8.8]
