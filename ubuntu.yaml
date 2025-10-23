@@ -18,124 +18,131 @@ autoinstall:
   # ===============================================
   # LÓGICA PARA NOMEAR MAQUINAS
   # ===============================================
+
+  # Setores: 
+  # # IMPLANTAÇÃO = implat 
+  # # PRODUÇÃO = prod 
+  # # SUPORTE = sup 
+  # # COMERCIAL = com 
+  # # AMINSTRATIVO / RH = admr 
+  # # Desnvolvimento = dev 
+  # 
+  # Tipos de maquinas: 
+  # # Estações de trabalho = workstation 
+  # # Servidor = server 
+  # # Kiosk (TVs) = kiosk 
+  # 
+  # Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
+
   identity:
     hostname: implant-workstation-01
     username: admings
     password: "$6$kO6Dl0JIi4pLithw$YuWkSmm3m0PSO2fbJ7P6dF7hNV6AuFKgTXbFJoSRnJNvsvokFZG.yLjOOeQZznlz487YvDAN9U2Q3HPy9SE7Y/"
 
-# Setores: 
-# # IMPLANTAÇÃO = implat 
-# # PRODUÇÃO = prod 
-# # SUPORTE = sup 
-# # COMERCIAL = com 
-# # AMINSTRATIVO / RH = admr 
-# # Desnvolvimento = dev 
-# 
-# Tipos de maquinas: 
-# # Estações de trabalho = workstation 
-# # Servidor = server 
-# # Kiosk (TVs) = kiosk 
-# 
-# Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
-
   # ===============================================
   # PACOTES
   # ===============================================
-  packages:
-    - git
-    - vim
-    - curl
-    - wget
-    - gpg
-    - openssh-server
-    - freeipa-client
-    - oddjob-mkhomedir
-    - ubuntu-restricted-extras
-    - ffmpeg
-    - gstreamer1.0-plugins-base
-    - gstreamer1.0-plugins-good
-    - gstreamer1.0-plugins-bad
-    - gstreamer1.0-plugins-ugly
-    - gstreamer1.0-libav
-    - gstreamer1.0-tools
-    - gstreamer1.0-x
-    - gstreamer1.0-alsa
-    - gstreamer1.0-pulseaudio
-    - flatpak
-    - libreoffice-l10n-pt-br
-    - libreoffice-help-pt-br
-    - hunspell-pt-br
+  packages: [] # Movido para late-commands para evitar erros de rede
 
   # ===============================================
   # APLICAR ARQUIVOS
   # ===============================================
-  write_files:
-    - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
-      permissions: '0644'
-      owner: root:root
-      content: |
-        /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
-        polkit.addRule(function(action, subject) {
-            if ((action.id == "org.freedesktop.login1.power-off" ||
-                 action.id == "org.freedesktop.login1.reboot") &&
-                 subject.isInGroup("powerusers")) {
-                return polkit.Result.YES;
-            }
-        });
+  user-data:
+    write_files:
+      - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
+        permissions: '0644'
+        owner: root:root
+        content: |
+          /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
+          polkit.addRule(function(action, subject) {
+              if ((action.id == "org.freedesktop.login1.power-off" ||
+                   action.id == "org.freedesktop.login1.reboot") &&
+                  subject.isInGroup("powerusers")) {
+                  return polkit.Result.YES;
+              }
+          });
 
-    - path: /usr/local/bin/setup-user-repo.sh
-      permissions: '0755'
-      owner: root:root
-      content: |
-        #!/bin/bash
-        LOCK_FILE="$HOME/.config/repo_setup_complete"
-        if [ ! -f "$LOCK_FILE" ]; then
-            REPO_URL="https://github.com/giusoft/FreeIPA.git"
-            DEST_DIR="$HOME/minhas-configs"
-            /usr/bin/git clone --branch rustdesk --single-branch "$REPO_URL" "$DEST_DIR"
-            if [ $? -eq 0 ]; then
-                mkdir -p "$HOME/.config"
-                touch "$LOCK_FILE"
-            fi
-        fi
+      - path: /usr/local/bin/setup-user-repo.sh
+        permissions: '0755'
+        owner: root:root
+        content: |
+          #!/bin/bash
+          LOCK_FILE="$HOME/.config/repo_setup_complete"
+          if [ ! -f "$LOCK_FILE" ]; then
+              REPO_URL="https://github.com/giusoft/FreeIPA.git"
+              DEST_DIR="$HOME/minhas-configs"
+              /usr/bin/git clone --branch rustdesk --single-branch "$REPO_URL" "$DEST_DIR"
+              if [ $? -eq 0 ]; then
+                  mkdir -p "$HOME/.config"
+                  touch "$LOCK_FILE"
+              fi
+          fi
 
-    - path: /etc/skel/.config/autostart/setup-repo.desktop
-      permissions: '0644'
-      owner: root:root
-      content: |
-        [Desktop Entry]
-        Type=Application
-        Name=Setup Inicial do Repositório
-        Comment=Clona o repositório de configurações no primeiro login
-        Exec=/usr/local/bin/setup-user-repo.sh
-        Terminal=false
-        Hidden=false
+      - path: /etc/skel/.config/autostart/setup-repo.desktop
+        permissions: '0644'
+        owner: root:root
+        content: |
+          [Desktop Entry]
+          Type=Application
+          Name=Setup Inicial do Repositório
+          Comment=Clona o repositório de configurações no primeiro login
+          Exec=/usr/local/bin/setup-user-repo.sh
+          Terminal=false
+          Hidden=false
 
   # ===============================================
   # PÓS-INSTALAÇÃO 
   # ===============================================
   late-commands:
-    # Configura o repositório do RustDesk
+    # 1. Atualiza lista de pacotes base
+    - curtin in-target -- apt update
+    
+    # 2. Instala ferramentas essenciais para os próximos passos
+    - curtin in-target -- apt install -y wget gpg curl
+
+    # 3. Configura o repositório do RustDesk
     - curtin in-target -- install -m 0755 -d /etc/apt/keyrings
     - curtin in-target -- /bin/sh -c "wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg"
     - curtin in-target -- /bin/sh -c 'echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list'
     
-    # Aceita o EULA das fontes Microsoft
+    # 4. Aceita o EULA das fontes Microsoft
     - curtin in-target -- /bin/sh -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
     
-    # Instala o RustDesk
+    # 5. Atualiza o apt de novo para incluir o repo do RustDesk
     - curtin in-target -- apt update
-    - curtin in-target -- apt install -y rustdesk
+    
+    # 6. Instala todos os pacotes de uma vez
+    - curtin in-target -- apt install -y \
+        git \
+        vim \
+        openssh-server \
+        freeipa-client \
+        oddjob-mkhomedir \
+        ubuntu-restricted-extras \
+        ffmpeg \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav \
+        gstreamer1.0-tools \
+        gstreamer1.0-x \
+        gstreamer1.0-alsa \
+        gstreamer1.0-pulseaudio \
+        flatpak \
+        libreoffice-l10n-pt-br \
+        libreoffice-help-pt-br \
+        hunspell-pt-br \
+        rustdesk
 
-    # Cria o grupo powerusers
+    # 7. Cria o grupo powerusers
     - curtin in-target -- groupadd powerusers
 
-    # Habilita SSH (o pacote 'openssh-server' já está na lista 'packages')
+    # 8. Habilita SSH
     - curtin in-target -- systemctl enable --now ssh
 
-    # Instala o Tailscale via script oficial
+    # 9. Instala o Tailscale via script oficial
     - curtin in-target -- /bin/sh -c "curl -fsSL https://tailscale.com/install.sh | sh"
     
-    # Ativa e inicia o serviço Tailscale
+    # 10. Ativa e inicia o serviço Tailscale
     - curtin in-target -- systemctl enable --now tailscaled
-
