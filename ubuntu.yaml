@@ -94,9 +94,9 @@ autoinstall:
         #!/bin/bash
         LOCK_FILE="$HOME/.config/repo_setup_complete"
         if [ ! -f "$LOCK_FILE" ]; then
-            REPO_URL=""
+            REPO_URL="https://github.com/giusoft/FreeIPA.git"
             DEST_DIR="$HOME/minhas-configs"
-            /usr/bin/git clone "$REPO_URL" "$DEST_DIR"
+            /usr/bin/git clone --branch rustdesk --single-branch "$REPO_URL" "$DEST_DIR"
             if [ $? -eq 0 ]; then
                 mkdir -p "$HOME/.config"
                 touch "$LOCK_FILE"
@@ -119,41 +119,39 @@ autoinstall:
   # COMANDOS PÓS-INSTALAÇÃO
   # ===============================================
   runcmd:
-
-    
-    # Aceita automaticamente o EULA do pacote de fontes Microsoft
-    - echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
-
-    # Habilita SSH
-    - systemctl enable --now ssh
-
-    # Instala o RustDesk (repositório adicional)
-    - install -m 0755 -d /etc/apt/keyrings
-    - wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg
-    - echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list
-    - apt update
-    - apt install -y rustdesk
+    - |
+      install -m 0755 -d /etc/apt/keyrings
+      wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list
+      echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
+      apt update
+      apt install -y rustdesk
 
     # Cria o grupo powerusers
     - groupadd powerusers
 
+    # Habilita SSH
+    - systemctl enable --now ssh
+
     # Instala o Tailscale via script oficial
     - curl -fsSL https://tailscale.com/install.sh | sh
-
+    
     # Ativa e inicia o serviço Tailscale
     - systemctl enable --now tailscaled
 
-# ===============================================
-# CONFIGURAÇÃO DE REDE (FORA DO AUTOINSTALL)
-# ===============================================
-network:
-  version: 2
-  ethernets:
-    id0:
-      match:
-        name: "e*"
-      dhcp4: true
-      dhcp4-overrides:
-        use-dns: false
-      nameservers:
-        addresses: [192.168.1.199]
+  # ===============================================
+  # CONFIGURAÇÃO DE REDE
+  # ===============================================
+  network:
+    version: 2
+    ethernets:
+      id0:
+        match:
+          name: "e*"
+        dhcp4: true
+        dhcp4-overrides:
+          use-dns: false
+        nameservers:
+          addresses: [192.168.1.199]
+
+
