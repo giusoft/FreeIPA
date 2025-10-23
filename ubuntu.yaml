@@ -1,0 +1,159 @@
+#cloud-config
+autoinstall:
+  version: 1
+
+  locale: pt_BR.UTF-8
+  keyboard:
+    layout: br
+    variant: abnt2
+
+  timezone: America/Sao_Paulo
+
+  # ===============================================
+  # USO TOTAL DO DISCO
+  # ===============================================
+  storage:
+    layout:
+      name: lvm 
+    swap:
+      size: auto
+
+  # ===============================================
+  # LÓGICA PARA NOMEAR MAQUINAS
+  # ===============================================
+
+  # Setores: 
+  # # IMPLANTAÇÃO = implat 
+  # # PRODUÇÃO = prod 
+  # # SUPORTE = sup 
+  # # COMERCIAL = com 
+  # # AMINSTRATIVO / RH = admr 
+  # # Desnvolvimento = dev 
+  
+  # Tipos de maquinas: 
+  # # Estações de trabalho = workstation 
+  # # Servidor = server 
+  # # Kiosk (TVs) = kiosk 
+  
+  # Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
+
+  identity:
+    hostname: implant-workstation-01
+    username: admings
+    password: "Vchar3300!"
+
+  # ===============================================
+  # PACOTES
+  # ===============================================
+  packages:
+    - git
+    - vim
+    - curl
+    - wget
+    - gpg
+    - openssh-server
+    - freeipa-client
+    - oddjob-mkhomedir
+    - ubuntu-restricted-extras
+    - ffmpeg
+    - gstreamer1.0-plugins-base
+    - gstreamer1.0-plugins-good
+    - gstreamer1.0-plugins-bad
+    - gstreamer1.0-plugins-ugly
+    - gstreamer1.0-libav
+    - gstreamer1.0-tools
+    - gstreamer1.0-x
+    - gstreamer1.0-alsa
+    - gstreamer1.0-pulseaudio
+    - flatpak
+    - libreoffice-l10n-pt-br
+    - libreoffice-help-pt-br
+    - hunspell-pt-br
+
+  # ===============================================
+  # APLICAR ARQUIVOS (POLKIT E SCRIPT DE LOGIN)
+  # ===============================================
+  write_files:
+    - path: /etc/polkit-1/rules.d/40-regras-personalizadas.rules
+      permissions: 0644
+      owner: root:root
+      content: |
+        /* Permite que usuários no grupo 'powerusers' desliguem/reiniciem sem senha */
+        polkit.addRule(function(action, subject) {
+            if ((action.id == "org.freedesktop.login1.power-off" ||
+                 action.id == "org.freedesktop.login1.reboot") &&
+                subject.isInGroup("powerusers")) {
+                return polkit.Result.YES;
+            }
+        });
+
+    - path: /usr/local/bin/setup-user-repo.sh
+      permissions: 0755
+      owner: root:root
+      content: |
+        #!/bin/bash
+        LOCK_FILE="$HOME/.config/repo_setup_complete"
+        if [ ! -f "$LOCK_FILE" ]; then
+            REPO_URL=""
+            DEST_DIR="$HOME/minhas-configs"
+            /usr/bin/git clone "$REPO_URL" "$DEST_DIR"
+            if [ $? -eq 0 ]; then
+                mkdir -p "$HOME/.config"
+                touch "$LOCK_FILE"
+            fi
+        fi
+
+    - path: /etc/skel/.config/autostart/setup-repo.desktop
+      permissions: 0644
+      owner: root:root
+      content: |
+        [Desktop Entry]
+        Type=Application
+        Name=Setup Inicial do Repositório
+        Comment=Clona o repositório de configurações no primeiro login
+        Exec=/usr/local/bin/setup-user-repo.sh
+        Terminal=false
+        Hidden=false
+
+  # ===============================================
+  # COMANDOS PÓS-INSTALAÇÃO
+  # ===============================================
+  runcmd:
+
+    
+    # Aceita automaticamente o EULA do pacote de fontes Microsoft
+    - echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
+
+    # Habilita SSH
+    - systemctl enable --now ssh
+
+    # Instala o RustDesk (repositório adicional)
+    - install -m 0755 -d /etc/apt/keyrings
+    - wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg
+    - echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list
+    - apt update
+    - apt install -y rustdesk
+
+    # Cria o grupo powerusers
+    - groupadd powerusers
+
+    # Instala o Tailscale via script oficial
+    - curl -fsSL https://tailscale.com/install.sh | sh
+
+    # Ativa e inicia o serviço Tailscale
+    - systemctl enable --now tailscaled
+
+# ===============================================
+# CONFIGURAÇÃO DE REDE (FORA DO AUTOINSTALL)
+# ===============================================
+network:
+  version: 2
+  ethernets:
+    id0:
+      match:
+        name: "e*"
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+      nameservers:
+        addresses: [192.168.1.199]
