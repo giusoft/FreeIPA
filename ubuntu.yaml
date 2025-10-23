@@ -14,9 +14,7 @@ autoinstall:
   # ===============================================
   storage:
     layout:
-      name: lvm 
-    swap:
-      size: auto
+      name: lvm  
 
   # ===============================================
   # LÓGICA PARA NOMEAR MAQUINAS
@@ -116,28 +114,32 @@ autoinstall:
         Hidden=false
 
   # ===============================================
-  # COMANDOS PÓS-INSTALAÇÃO
+  # COMANDOS PÓS-INSTALAÇÃO (AGORA COMO LATE-COMMANDS)
   # ===============================================
-  runcmd:
-    - |
-      install -m 0755 -d /etc/apt/keyrings
-      wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg
-      echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list
-      echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
-      apt update
-      apt install -y rustdesk
+  late-commands:
+    # Configura o repositório do RustDesk
+    - curtin in-target -- install -m 0755 -d /etc/apt/keyrings
+    - curtin in-target -- /bin/sh -c "wget -O - https://rustdesk.com/rustdesk.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rustdesk.gpg"
+    - curtin in-target -- /bin/sh -c 'echo "deb [signed-by=/etc/apt/keyrings/rustdesk.gpg] https://rustdesk.com/download/linux/deb/nightly ./" > /etc/apt/sources.list.d/rustdesk.list'
+    
+    # Aceita o EULA das fontes Microsoft
+    - curtin in-target -- /bin/sh -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
+    
+    # Instala o RustDesk
+    - curtin in-target -- apt update
+    - curtin in-target -- apt install -y rustdesk
 
     # Cria o grupo powerusers
-    - groupadd powerusers
+    - curtin in-target -- groupadd powerusers
 
-    # Habilita SSH
-    - systemctl enable --now ssh
+    # Habilita SSH (o pacote 'openssh-server' já está na lista 'packages')
+    - curtin in-target -- systemctl enable --now ssh
 
     # Instala o Tailscale via script oficial
-    - curl -fsSL https://tailscale.com/install.sh | sh
+    - curtin in-target -- /bin/sh -c "curl -fsSL https://tailscale.com/install.sh | sh"
     
     # Ativa e inicia o serviço Tailscale
-    - systemctl enable --now tailscaled
+    - curtin in-target -- systemctl enable --now tailscaled
 
   # ===============================================
   # CONFIGURAÇÃO DE REDE
@@ -153,5 +155,3 @@ autoinstall:
           use-dns: false
         nameservers:
           addresses: [192.168.1.199]
-
-
