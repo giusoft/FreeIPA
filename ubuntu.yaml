@@ -23,6 +23,21 @@ autoinstall:
     username: admings
     password: "$6$kO6Dl0JIi4pLithw$YuWkSmm3m0PSO2fbJ7P6dF7hNV6AuFKgTXbFJoSRnJNvsvokFZG.yLjOOeQZznlz487YvDAN9U2Q3HPy9SE7Y/"
 
+  # Setores: 
+  # # IMPLANTAÇÃO = implat 
+  # # PRODUÇÃO = prod 
+  # # SUPORTE = sup 
+  # # COMERCIAL = com 
+  # # AMINSTRATIVO / RH = admr 
+  # # Desnvolvimento = dev 
+  
+  # Tipos de maquinas: 
+  # # Estações de trabalho = workstation 
+  # # Servidor = server 
+  # # Kiosk (TVs) = kiosk 
+  
+  # Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
+
   # ===============================================
   # PACOTES
   # ===============================================
