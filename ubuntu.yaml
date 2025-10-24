@@ -32,7 +32,9 @@ autoinstall:
   # # Servidor = server 
   # # Kiosk (TVs) = kiosk 
   # 
-  # Setor + tipo de maquina + número (01 ...) # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. Essa medida visa manter a organização.
+  # Setor + tipo de maquina + número (01 ...) 
+  # Obs: Sempre verificar no FreeIPA se existe algum número disponivel antes do ultimo naquele setor. 
+  # Essa medida visa manter a organização.
 
   identity:
     hostname: implant-workstation-01
@@ -94,22 +96,26 @@ autoinstall:
   # PÓS-INSTALAÇÃO 
   # ===============================================
   late-commands:
-    # 1. Atualiza lista de pacotes base
+    # 1. Garante conectividade e habilita repositórios completos
+    - curtin in-target -- bash -c "ping -c2 archive.ubuntu.com || dhclient || true"
+    - curtin in-target -- bash -c "sed -i 's/^# deb/deb/g' /etc/apt/sources.list"
+    - curtin in-target -- bash -c 'add-apt-repository -y universe && add-apt-repository -y multiverse && add-apt-repository -y restricted'
+
+    # 2. Atualiza lista de pacotes base e instala ferramentas essenciais
     - curtin in-target -- apt update
-    
-    # 2. Instala ferramentas essenciais para os próximos passos
-    - curtin in-target -- apt install -y wget gpg curl
-    
+    - curtin in-target -- apt install -y wget gpg curl software-properties-common apt-transport-https ca-certificates
+
     # 3. Configura o repositório do Google Chrome
-    - curtin in-target -- /bin/sh -c "wget -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg"
-    - curtin in-target -- /bin/sh -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
+    - curtin in-target -- bash -c "mkdir -p /etc/apt/keyrings"
+    - curtin in-target -- bash -c 'wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | tee /etc/apt/keyrings/google-chrome.gpg > /dev/null'
+    - curtin in-target -- bash -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
 
     # 4. Aceita o EULA das fontes Microsoft
-    - curtin in-target -- /bin/sh -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
-    
-    # 5. Atualiza o apt de novo para incluir o repo do Chrome
+    - curtin in-target -- bash -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
+
+    # 5. Atualiza o apt novamente para incluir o repo do Chrome
     - curtin in-target -- apt update
-    
+
     # 6. Instala todos os pacotes de uma vez (sem RustDesk)
     - curtin in-target -- apt install -y \
         google-chrome-stable \
@@ -135,17 +141,17 @@ autoinstall:
         hunspell-pt-br
 
     # 7. Baixa e instala o RustDesk .deb
-    - curtin in-target -- wget https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb -O /tmp/rustdesk.deb
-    - curtin in-target -- apt install -y /tmp/rustdesk.deb
+    - curtin in-target -- bash -c "wget -q https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb -O /tmp/rustdesk.deb && apt install -y /tmp/rustdesk.deb"
 
     # 8. Cria o grupo powerusers
-    - curtin in-target -- groupadd powerusers
+    - curtin in-target -- groupadd -f powerusers
 
     # 9. Habilita SSH
     - curtin in-target -- systemctl enable --now ssh
 
     # 10. Instala o Tailscale via script oficial
-    - curtin in-target -- /bin/sh -c "curl -fsSL https://tailscale.com/install.sh | sh"
+    - curtin in-target -- bash -c "curl -fsSL https://tailscale.com/install.sh | sh"
     
     # 11. Ativa e inicia o serviço Tailscale
     - curtin in-target -- systemctl enable --now tailscaled
+
