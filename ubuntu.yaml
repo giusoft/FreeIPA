@@ -96,28 +96,34 @@ autoinstall:
   # PÓS-INSTALAÇÃO 
   # ===============================================
   late-commands:
-    # 1. Garante conectividade e habilita repositórios completos
-    - curtin in-target -- bash -c "ping -c2 archive.ubuntu.com || dhclient || true"
-    - curtin in-target -- bash -c "sed -i 's/^# deb/deb/g' /etc/apt/sources.list"
-    - curtin in-target -- bash -c 'add-apt-repository -y universe && add-apt-repository -y multiverse && add-apt-repository -y restricted'
+    # Cria log centralizado para debug
+    - curtin in-target -- bash -c "mkdir -p /var/log && touch /var/log/giusoft-late.log && echo '=== INÍCIO DOS LATE-COMMANDS ===' >> /var/log/giusoft-late.log"
 
-    # 2. Atualiza lista de pacotes base e instala ferramentas essenciais
-    - curtin in-target -- apt update
-    - curtin in-target -- apt install -y wget gpg curl software-properties-common apt-transport-https ca-certificates
+    # 1. Garante conectividade dentro do ambiente chroot
+    - curtin in-target -- bash -c "echo 'Ativando rede dentro do target...' >> /var/log/giusoft-late.log"
+    - curtin in-target -- bash -c "dhclient -v || (ping -c2 8.8.8.8 || true)" >> /var/log/giusoft-late.log 2>&1
 
-    # 3. Configura o repositório do Google Chrome
+    # 2. Habilita repositórios padrão
+    - curtin in-target -- bash -c "sed -i 's/^# deb/deb/g' /etc/apt/sources.list" >> /var/log/giusoft-late.log 2>&1
+    - curtin in-target -- bash -c 'add-apt-repository -y universe && add-apt-repository -y multiverse && add-apt-repository -y restricted' >> /var/log/giusoft-late.log 2>&1
+
+    # 3. Atualiza repositórios base
+    - curtin in-target -- bash -c "apt update -y" >> /var/log/giusoft-late.log 2>&1
+    - curtin in-target -- bash -c "apt install -y wget gpg curl software-properties-common apt-transport-https ca-certificates" >> /var/log/giusoft-late.log 2>&1
+
+    # 4. Configura o repositório do Google Chrome
     - curtin in-target -- bash -c "mkdir -p /etc/apt/keyrings"
     - curtin in-target -- bash -c 'wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | tee /etc/apt/keyrings/google-chrome.gpg > /dev/null'
     - curtin in-target -- bash -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
 
-    # 4. Aceita o EULA das fontes Microsoft
+    # 5. Aceita o EULA das fontes Microsoft
     - curtin in-target -- bash -c 'echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections'
 
-    # 5. Atualiza o apt novamente para incluir o repo do Chrome
-    - curtin in-target -- apt update
+    # 6. Atualiza apt novamente com o novo repositório
+    - curtin in-target -- bash -c "apt update -y" >> /var/log/giusoft-late.log 2>&1
 
-    # 6. Instala todos os pacotes de uma vez (sem RustDesk)
-    - curtin in-target -- apt install -y \
+    # 7. Instala pacotes principais
+    - curtin in-target -- bash -c "apt install -y \
         google-chrome-stable \
         git \
         vim \
@@ -138,20 +144,23 @@ autoinstall:
         flatpak \
         libreoffice-l10n-pt-br \
         libreoffice-help-pt-br \
-        hunspell-pt-br
+        hunspell-pt-br" >> /var/log/giusoft-late.log 2>&1 || true
 
-    # 7. Baixa e instala o RustDesk .deb
-    - curtin in-target -- bash -c "wget -q https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb -O /tmp/rustdesk.deb && apt install -y /tmp/rustdesk.deb"
+    # 8. Instala RustDesk
+    - curtin in-target -- bash -c "wget -q https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb -O /tmp/rustdesk.deb && apt install -y /tmp/rustdesk.deb" >> /var/log/giusoft-late.log 2>&1 || true
 
-    # 8. Cria o grupo powerusers
-    - curtin in-target -- groupadd -f powerusers
+    # 9. Cria grupo powerusers
+    - curtin in-target -- bash -c "groupadd -f powerusers" >> /var/log/giusoft-late.log 2>&1
 
-    # 9. Habilita SSH
-    - curtin in-target -- systemctl enable --now ssh
+    # 10. Habilita SSH
+    - curtin in-target -- bash -c "systemctl enable --now ssh" >> /var/log/giusoft-late.log 2>&1
 
-    # 10. Instala o Tailscale via script oficial
-    - curtin in-target -- bash -c "curl -fsSL https://tailscale.com/install.sh | sh"
-    
-    # 11. Ativa e inicia o serviço Tailscale
-    - curtin in-target -- systemctl enable --now tailscaled
+    # 11. Instala Tailscale via script oficial
+    - curtin in-target -- bash -c "curl -fsSL https://tailscale.com/install.sh | sh" >> /var/log/giusoft-late.log 2>&1 || true
+
+    # 12. Ativa Tailscale
+    - curtin in-target -- bash -c "systemctl enable --now tailscaled" >> /var/log/giusoft-late.log 2>&1
+
+    # Finaliza log
+    - curtin in-target -- bash -c "echo '=== FIM DOS LATE-COMMANDS ===' >> /var/log/giusoft-late.log"
 
