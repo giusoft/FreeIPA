@@ -97,6 +97,7 @@ apt install -y \
     lm-sensors \
     htop \
     dconf-cli
+
 # ------------------------------------------------------------
 # 6. Instala RustDesk
 # ------------------------------------------------------------
@@ -282,8 +283,6 @@ if [ -f "$WALLPAPER_FILE" ]; then
 else
     echo "[WARN] Arquivo $WALLPAPER_FILE não encontrado! O wallpaper não será aplicado."
 fi
-
-# (Aqui vem a seção de Finalização que já existe no seu script)
 
 # ------------------------------------------------------------
 # Finalização
