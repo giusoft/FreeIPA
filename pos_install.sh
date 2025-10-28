@@ -72,6 +72,7 @@ apt install -y \
     gstreamer1.0-alsa \
     gstreamer1.0-pulseaudio \
     flatpak \
+    libreoffice \
     libreoffice-l10n-pt-br \
     libreoffice-help-pt-br \
     hunspell-pt-br \
@@ -96,7 +97,8 @@ apt install -y \
     libdrm-dev \
     lm-sensors \
     htop \
-    dconf-cli
+    dconf-cli \
+    thunderbird
 
 # ------------------------------------------------------------
 # 6. Instala RustDesk
@@ -283,6 +285,131 @@ if [ -f "$WALLPAPER_FILE" ]; then
 else
     echo "[WARN] Arquivo $WALLPAPER_FILE não encontrado! O wallpaper não será aplicado."
 fi
+
+# ------------------------------------------------------------
+# 16. Oculta Aplicações do Menu (NoDisplay)
+# ------------------------------------------------------------
+echo "[INFO] Ocultando aplicações desnecessárias do menu..."
+
+# Lista de arquivos .desktop que serão ocultados
+HIDDEN_APPS=(
+    "apport-gtk.desktop"
+    "bluetooth-sendto.desktop"
+    "gcr-prompter.desktop"
+    "gcr-viewer.desktop"
+    "geoclue-demo-agent.desktop"
+    "gkbd-keyboard-display.desktop"
+    "gnome-about-panel.desktop"
+    "gnome-applications-panel.desktop"
+    "gnome-background-panel.desktop"
+    "gnome-bluetooth-panel.desktop"
+    "gnome-color-panel.desktop"
+    "gnome-datetime-panel.desktop"
+    "gnome-disk-image-mounter.desktop"
+    "gnome-disk-image-writer.desktop"
+    "gnome-display-panel.desktop"
+    "gnome-initial-setup.desktop"
+    "gnome-keyboard-panel.desktop"
+    "gnome-language-selector.desktop"
+    "gnome-mouse-panel.desktop"
+    "gnome-multitasking-panel.desktop"
+    "gnome-network-panel.desktop"
+    "gnome-notifications-panel.desktop"
+    "gnome-online-accounts-panel.desktop"
+    "gnome-power-panel.desktop"
+    "gnome-printers-panel.desktop"
+    "gnome-privacy-panel.desktop"
+    "gnome-region-panel.desktop"
+    "gnome-search-panel.desktop"
+    "gnome-session-properties.desktop"
+    "gnome-sharing-panel.desktop"
+    "gnome-sound-panel.desktop"
+    "gnome-system-monitor-kde.desktop"
+    "gnome-system-panel.desktop"
+    "gnome-ubuntu-panel.desktop"
+    "gnome-universal-access-panel.desktop"
+    "gnome-users-panel.desktop"
+    "gnome-wacom-panel.desktop"
+    "gnome-wifi-panel.desktop"
+    "gnome-wwan-panel.desktop"
+    "hplj1020.desktop"
+    "htop.desktop"
+    "ibus-setup-chewing.desktop"
+    "ibus-setup-libbopomofo.desktop"
+    "ibus-setup-libpinyin.desktop"
+    "ibus-setup-m17n.desktop"
+    "ibus-setup-table.desktop"
+    "im-config.desktop"
+    "info.desktop"
+    "io.snapcraft.SessionAgent.desktop"
+    "libreoffice-startcenter.desktop"
+    "libreoffice-xsltfilter.desktop"
+    "nautilus-autorun-software.desktop"
+    "nm-applet.desktop"
+    "nm-connection-editor.desktop"
+    "nvim.desktop"
+    "org.freedesktop.IBus.Panel.Emojier.desktop"
+    "org.freedesktop.IBus.Panel.Extension.Gtk3.desktop"
+    "org.freedesktop.IBus.Panel.Wayland.Gtk3.desktop"
+    "org.freedesktop.IBus.Setup.desktop"
+    "org.freedesktop.Xwayland.desktop"
+    "org.gnome.Characters.desktop"
+    "org.gnome.DiskUtility.desktop"
+    "org.gnome.Evince-previewer.desktop"
+    "org.gnome.Evince.desktop"
+    "org.gnome.Evolution-alarm-notify.desktop"
+    "org.gnome.Logs.desktop"
+    "org.gnome.OnlineAccounts.OAuth2.desktop"
+    "org.gnome.PowerStats.desktop"
+    "org.gnome.RemoteDesktop.Handover.desktop"
+    "org.gnome.Shell.Extensions.desktop"
+    "org.gnome.Shell.desktop"
+    "org.gnome.SystemMonitor.desktop"
+    "org.gnome.Tecla.desktop"
+    "org.gnome.Terminal.Preferences.desktop"
+    "org.gnome.Zenity.desktop"
+    "org.gnome.baobab.desktop"
+    "org.gnome.eog.desktop"
+    "org.gnome.evolution-data-server.OAuth2-handler.desktop"
+    "org.gnome.font-viewer.desktop"
+    "org.gnome.seahorse.Application.desktop"
+    "python3.12.desktop"
+    "rygel.desktop"
+    "snap-handle-link.desktop"
+    "software-properties-drivers.desktop"
+    "software-properties-gtk.desktop"
+    "software-properties-livepatch.desktop"
+    "update-manager.desktop"
+    "vim.desktop"
+    "xdg-desktop-portal-gnome.desktop"
+    "xdg-desktop-portal-gtk.desktop"
+    "yelp.desktop"
+)
+
+# 1. Prepara o /etc/skel para futuros usuários
+SKEL_APP_DIR="/etc/skel/.local/share/applications"
+mkdir -p "$SKEL_APP_DIR"
+
+for app in "${HIDDEN_APPS[@]}"; do
+    echo "[Desktop Entry]" > "$SKEL_APP_DIR/$app"
+    echo "NoDisplay=true" >> "$SKEL_APP_DIR/$app"
+done
+
+# 2. Aplica aos usuários existentes em /home
+echo "[INFO] Aplicando ocultação de apps aos usuários existentes em /home..."
+for userhome in /home/*; do
+    if [ -d "$userhome" ]; then
+        USER_APP_DIR="$userhome/.local/share/applications"
+        mkdir -p "$USER_APP_DIR"
+        
+        # Copia todos os arquivos de override
+        cp -f "$SKEL_APP_DIR/"*.desktop "$USER_APP_DIR/"
+        
+        # Corrige as permissões da pasta
+        chown -R "$(basename "$userhome"):$(basename "$userhome")" "$userhome/.local"
+    fi
+done
+
 
 # ------------------------------------------------------------
 # Finalização
