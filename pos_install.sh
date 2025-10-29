@@ -3,7 +3,7 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v4 - Correção GitHub):
+# Descrição Unificada (v4):
 #   - Atualiza repositórios e instala pacotes essenciais (incluindo unzip)
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
@@ -26,7 +26,6 @@ echo "Log será salvo em: $LOGFILE"
 
 # ------------------------------------------------------------
 # 1. Atualiza sistema e garante conectividade
-#    *** MODIFICADO: Adicionado 'unzip' ***
 # ------------------------------------------------------------
 echo "[INFO] Atualizando pacotes base..."
 apt update -y
@@ -108,7 +107,6 @@ rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
 # 10. Instala Extensão GNOME 'activate_gnome'
-#     *** MODIFICADO: Usa WGET + UNZIP para evitar login GitHub ***
 # ------------------------------------------------------------
 echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide..."
 EXTENSION_UUID="activate_gnome@r-pr"
@@ -269,12 +267,8 @@ chmod 644 "$RUSTDESK_DIR/RustDesk2.toml"
 cp -f "$RUSTDESK_DIR/RustDesk2.toml" "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
 chmod 444 "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
 
-# O loop 'for userhome...' foi REMOVIDO daqui.
-# A lógica agora está centralizada no script profile.d (próxima seção).
-
 # ------------------------------------------------------------
 # 14. Cria script /etc/profile.d para novos usuários
-#     *** LÓGICA CORRIGIDA ***
 # ------------------------------------------------------------
 echo "[INFO] Criando script para copiar configs RustDesk no primeiro login..."
 
