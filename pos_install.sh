@@ -3,14 +3,14 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v2):
+# Descrição Unificada (v3 - Corrigido):
 #   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
 #   - Instala e ativa a extensão GNOME 'activate_gnome' system-wide
 #   - Cria script de info (IP/Hostname) para a extensão
 #   - Cria grupo 'powerusers' com permissões especiais via polkit
-#   - Configura RustDesk com bloqueio de preferências
+#   - Configura RustDesk com bloqueio de preferências (Lógica corrigida)
 #   - Configura e bloqueia o wallpaper corporativo via dconf
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
@@ -209,6 +209,7 @@ apt install -y \
 
 # ------------------------------------------------------------
 # 13. Configuração do RustDesk (bloqueio e template)
+#     *** LÓGICA CORRIGIDA ***
 # ------------------------------------------------------------
 echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
 
@@ -238,31 +239,34 @@ key = ""
 show-tray-icon = true
 EOF
 
-chmod 444 "$RUSTDESK_DIR/RustDesk2.toml"
+# IMPORTANTE: Permissão 644 (gravável pelo dono) para o template do skel
+chmod 644 "$RUSTDESK_DIR/RustDesk2.toml"
+
+# O global /etc/rustdesk/ pode ser read-only (444) para bloqueio
 cp -f "$RUSTDESK_DIR/RustDesk2.toml" "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
 chmod 444 "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
 
-for userhome in /home/*; do
-    if [ -d "$userhome" ]; then
-        mkdir -p "$userhome/.config/rustdesk"
-        cp -n "$RUSTDESK_DIR/RustDesk2.toml" "$userhome/.config/rustdesk/"
-        chown -R "$(basename "$userhome"):$(basename "$userhome")" "$userhome/.config/rustdesk"
-    fi
-done
+# O loop 'for userhome...' foi REMOVIDO daqui.
+# A lógica agora está centralizada no script profile.d (próxima seção).
 
 # ------------------------------------------------------------
 # 14. Cria script /etc/profile.d para novos usuários
+#     *** LÓGICA CORRIGIDA ***
 # ------------------------------------------------------------
 echo "[INFO] Criando script para copiar configs RustDesk no primeiro login..."
 
 cat > /etc/profile.d/copy-rustdesk-config.sh <<'EOF'
 #!/bin/bash
-CONFIG_DIR="$HOME/.config/rustdesk"
-TEMPLATE_DIR="/etc/skel/.config/rustdesk"
-if [ ! -d "$CONFIG_DIR" ]; then
-    mkdir -p "$CONFIG_DIR"
-    cp -n "$TEMPLATE_DIR/"* "$CONFIG_DIR/" 2>/dev/null || true
-    echo "[INFO] Configuração do RustDesk copiada para $CONFIG_DIR"
+CONFIG_FILE="$HOME/.config/rustdesk/RustDesk2.toml"
+TEMPLATE_FILE="/etc/skel/.config/rustdesk/RustDesk2.toml"
+
+# Só executa se o arquivo de template existir E o config do usuário AINDA NÃO existir
+if [ -f "$TEMPLATE_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    cp "$TEMPLATE_FILE" "$CONFIG_FILE"
+    # Não é preciso 'chown', pois este script roda como o próprio usuário no login.
+    # O arquivo copiado será 'user:user 644' e o RustDesk poderá escrever nele.
+    echo "[INFO] Configuração inicial do RustDesk copiada para $CONFIG_FILE"
 fi
 EOF
 chmod 755 /etc/profile.d/copy-rustdesk-config.sh
@@ -359,7 +363,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPAPER_DEST_FILE'
+picture-uri-dark='file://$WALLPLAYPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -541,5 +545,33 @@ done
 
 
 # ------------------------------------------------------------
-# Finalização
-#
+# 22. Finalização (Adicionada)
+# ------------------------------------------------------------
+echo ""
+echo "============================================================"
+echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
+echo "Log salvo em: $LOGFILE"
+echo "IMPORTANTE: Faça LOGOUT e LOGIN para que o wallpaper e as extensões tenham efeito."
+echo "============================================================"
+echo ""
+echo "Próximos passos manuais recomendados:"
+echo ""
+echo "1. Fazer o join no FreeIPA (ipa.gs.internal):"
+echo "   =========================================="
+echo "   # Se caso exista, desinstale restos da tentativa anterior:"
+echo "   sudo ipa-client-install --uninstall -U"
+echo ""
+echo "   # Agora rode o join diretamente:"
+echo "   sudo ipa-client-install \\"
+echo "     --mkhomedir \\"
+echo "     --no-ntp \\"
+echo "     --server=ipa.gs.internal \\"
+echo "     --domain=gs.internal \\"
+echo "     --principal=admin"
+echo ""
+echo "2. Autentique o Tailscale:"
+echo "   sudo tailscale up"
+echo ""
+echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
+echo "   sudo usermod -aG powerusers nome_do_usuario"
+echo "------------------------------------------------------------"
