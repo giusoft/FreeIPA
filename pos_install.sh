@@ -209,7 +209,6 @@ apt install -y \
 
 # ------------------------------------------------------------
 # 13. Configuração do RustDesk (bloqueio e template)
-#     *** LÓGICA CORRIGIDA ***
 # ------------------------------------------------------------
 echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
 
