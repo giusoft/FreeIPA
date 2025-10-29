@@ -3,13 +3,15 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada:
+# Descrição Unificada (v2):
 #   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
-#   - Instala pacotes (Zoiper, RustDesk, Tailscale, LibreOffice, etc.)
+#   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
+#   - Instala e ativa a extensão GNOME 'activate_gnome' system-wide
+#   - Cria script de info (IP/Hostname) para a extensão
 #   - Cria grupo 'powerusers' com permissões especiais via polkit
 #   - Configura RustDesk com bloqueio de preferências
-#   - Configura e bloqueia o wallpaper corporativo via dconf (com correção de perfil)
+#   - Configura e bloqueia o wallpaper corporativo via dconf
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
 #   - Instala e habilita Tailscale e SSH
@@ -27,7 +29,7 @@ echo "Log será salvo em: $LOGFILE"
 # ------------------------------------------------------------
 echo "[INFO] Atualizando pacotes base..."
 apt update -y
-apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates
+apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git
 
 # ------------------------------------------------------------
 # 2. Habilita repositórios adicionais
@@ -36,7 +38,6 @@ echo "[INFO] Habilitando repositórios universe/multiverse/restricted..."
 add-apt-repository -y universe
 add-apt-repository -y multiverse
 add-apt-repository -y restricted
-apt update -y
 
 # ------------------------------------------------------------
 # 3. Configura repositório Google Chrome
@@ -66,33 +67,37 @@ echo "[INFO] Atualizando lista de pacotes..."
 apt update -y
 
 # ------------------------------------------------------------
-# 7. Instala Zoiper 5 (Requer URL manual)
+# 7. Clona Repositório GiuSoft (Necessário para Zoiper e Wallpaper)
 # ------------------------------------------------------------
-echo "[INFO] Instalando Zoiper 5..."
+echo "[INFO] Clonando repositório GiuSoft..."
+GIT_REPO_DIR="/opt/giusoft/FreeIPA"
+mkdir -p /opt/giusoft
 
-# !!! ATENÇÃO !!!
-# O Zoiper não fornece um link de download .deb direto e estável.
-# 1. Vá para: https://www.zoiper.com/en/voip-softphone/download/zoiper5/for/linux-deb
-# 2. Clique com o botão direito em "Debian package" (versão Free) e copie o link.
-# 3. Cole o link abaixo.
-ZOIPER_URL="COLE_O_URL_DO_DEB_AQUI"
-
-if [ "$ZOIPER_URL" == "COLE_O_URL_DO_DEB_AQUI" ]; then
-    echo "[AVISO] URL do Zoiper não definida. Pulando instalação."
-    echo "[AVISO] Edite este script e defina a variável ZOIPER_URL."
+# Clona o repositório se não existir, ou atualiza se já existir
+if [ -d "$GIT_REPO_DIR/.git" ]; then
+    echo "[INFO] Repositório existente. Atualizando..."
+    (cd "$GIT_REPO_DIR" && git pull)
 else
-    echo "[INFO] Baixando Zoiper de $ZOIPER_URL..."
-    wget -q "$ZOIPER_URL" -O /tmp/zoiper5.deb
-    if [ $? -eq 0 ]; then
-        apt install -y /tmp/zoiper5.deb
-        rm -f /tmp/zoiper5.deb
-    else
-        echo "[ERRO] Falha ao baixar o Zoiper. Verifique o URL."
-    fi
+    echo "[INFO] Repositório não encontrado. Clonando..."
+    git clone https://github.com/giusoft/FreeIPA.git "$GIT_REPO_DIR"
 fi
 
 # ------------------------------------------------------------
-# 8. Instala RustDesk
+# 8. Instala Zoiper 5 (do Repositório GiuSoft)
+# ------------------------------------------------------------
+echo "[INFO] Instalando Zoiper 5 do repositório GiuSoft..."
+ZOIPER_DEB_PATH="$GIT_REPO_DIR/Zoiper.deb"
+
+if [ -f "$ZOIPER_DEB_PATH" ]; then
+    echo "[INFO] Arquivo Zoiper.deb encontrado. Instalando..."
+    apt install -y "$ZOIPER_DEB_PATH"
+else
+    echo "[AVISO] $ZOIPER_DEB_PATH não encontrado no repositório."
+    echo "[AVISO] Pulei a instalação do Zoiper."
+fi
+
+# ------------------------------------------------------------
+# 9. Instala RustDesk
 # ------------------------------------------------------------
 echo "[INFO] Instalando RustDesk..."
 RUSTDESK_URL="https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb"
@@ -101,13 +106,62 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 9. Instala pacotes principais (ownCloud, Chrome e outros)
+# 10. Instala Extensão GNOME 'activate_gnome'
+# ------------------------------------------------------------
+echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide..."
+EXTENSION_UUID="activate_gnome@r-pr"
+EXTENSION_DIR="/usr/share/gnome-shell/extensions/$EXTENSION_UUID"
+EXTENSION_REPO="https://github.com/PR-l/activate_gnome.git"
+TMP_REPO_DIR="/tmp/activate_gnome"
+
+if [ -d "$EXTENSION_DIR" ]; then
+    echo "[INFO] Extensão 'activate_gnome' já parece estar instalada. Pulando."
+else
+    git clone "$EXTENSION_REPO" "$TMP_REPO_DIR"
+    mkdir -p "$EXTENSION_DIR"
+    cp -r "$TMP_REPO_DIR/." "$EXTENSION_DIR/"
+    chmod -R 755 "$EXTENSION_DIR"
+    
+    # Compila os schemas (crucial para a extensão ser reconhecida)
+    if [ -f "$EXTENSION_DIR/schemas/org.gnome.shell.extensions.activate_gnome.gschema.xml" ]; then
+        echo "[INFO] Compilando schemas da extensão..."
+        glib-compile-schemas "$EXTENSION_DIR/schemas/"
+    else
+        echo "[WARN] Arquivo de schema não encontrado. A extensão pode não funcionar."
+    fi
+    rm -rf "$TMP_REPO_DIR"
+    echo "[INFO] Extensão 'activate_gnome' instalada."
+fi
+
+# ------------------------------------------------------------
+# 11. Cria script de info para a extensão 'activate_gnome'
+# ------------------------------------------------------------
+echo "[INFO] Criando script de informações em /usr/local/bin/activate_gnome_script.sh"
+cat > /usr/local/bin/activate_gnome_script.sh <<'EOF'
+#!/bin/bash
+HOST=$(hostname)
+IP=$(hostname -I | awk '{for(i=1;i<=NF;i++) if ($i !~ /^127/ && $i !~ /^172\.17/ && $i !~ /^172\.18/) {print $i; exit}}')
+
+# Fallback se o IP estiver vazio (ex: sem rede, só loopback)
+if [ -z "$IP" ]; then
+    IP=$(hostname -I | awk '{print $1}') # Pega o primeiro IP que encontrar
+fi
+if [ -z "$IP" ]; then
+    IP="N/A" # Caso extremo
+fi
+
+# Gera o JSON que a extensão espera
+echo "{\"text\": \"$HOST ($IP)\", \"tooltip\": \"Hostname: $HOST\nIP: $IP\", \"class\": \"activate_gnome_class\"}"
+EOF
+chmod +x /usr/local/bin/activate_gnome_script.sh
+
+# ------------------------------------------------------------
+# 12. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
 apt install -y \
     google-chrome-stable \
     owncloud-client \
-    git \
     vim \
     openssh-server \
     freeipa-client \
@@ -150,11 +204,11 @@ apt install -y \
     lm-sensors \
     htop \
     dconf-cli \
-    gnome-shell-extension-prefs
+    gnome-shell-extension-prefs \
     thunderbird
 
 # ------------------------------------------------------------
-# 10. Configuração do RustDesk (bloqueio e template)
+# 13. Configuração do RustDesk (bloqueio e template)
 # ------------------------------------------------------------
 echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
 
@@ -197,7 +251,7 @@ for userhome in /home/*; do
 done
 
 # ------------------------------------------------------------
-# 11. Cria script /etc/profile.d para novos usuários
+# 14. Cria script /etc/profile.d para novos usuários
 # ------------------------------------------------------------
 echo "[INFO] Criando script para copiar configs RustDesk no primeiro login..."
 
@@ -214,7 +268,7 @@ EOF
 chmod 755 /etc/profile.d/copy-rustdesk-config.sh
 
 # ------------------------------------------------------------
-# 12. Cria grupo powerusers e regra polkit
+# 15. Cria grupo powerusers e regra polkit
 # ------------------------------------------------------------
 echo "[INFO] Criando grupo powerusers e regra polkit..."
 groupadd -f powerusers
@@ -231,55 +285,32 @@ EOF
 chmod 644 /etc/polkit-1/rules.d/40-regras-personalizadas.rules
 
 # ------------------------------------------------------------
-# 13. Instala e habilita Tailscale
+# 16. Instala e habilita Tailscale
 # ------------------------------------------------------------
 echo "[INFO] Instalando Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | bash
 systemctl enable --now tailscaled
 
 # ------------------------------------------------------------
-# 14. Habilita SSH
+# 17. Habilita SSH
 # ------------------------------------------------------------
 echo "[INFO] Habilitando SSH..."
 systemctl enable --now ssh
 
 # ============================================================
-# INÍCIO DA SEÇÃO DE WALLPAPER (INTEGRADA DO wallpaper.sh)
+# INÍCIO DA SEÇÃO DE WALLPAPER E EXTENSÕES (DCONF)
 # ============================================================
 
 # ------------------------------------------------------------
-# 15. Configura Repositório e Wallpaper Corporativo
-# ------------------------------------------------------------
-echo "[INFO] Clonando repositório GiuSoft..."
-GIT_REPO_DIR="/opt/giusoft/FreeIPA"
-WALLPAPER_SRC_FILE="$GIT_REPO_DIR/Wallpaper.png"
-WALLPAPER_DEST_FILE="/usr/share/backgrounds/giusoft/Wallpaper.png"
-mkdir -p /opt/giusoft
-
-# Clona o repositório se não existir, ou atualiza se já existir
-if [ -d "$GIT_REPO_DIR/.git" ]; then
-    echo "[INFO] Repositório existente. Atualizando..."
-    (cd "$GIT_REPO_DIR" && git pull)
-else
-    echo "[INFO] Repositório não encontrado. Clonando..."
-    git clone https://github.com/giusoft/FreeIPA.git "$GIT_REPO_DIR"
-fi
-
-# Copia o wallpaper para o diretório padrão do sistema
-echo "[INFO] Copiando wallpaper para $WALLPAPER_DEST_FILE..."
-mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
-if [ -f "$WALLPAPER_SRC_FILE" ]; then
-    cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DEST_FILE"
-else
-     echo "[WARN] Arquivo fonte $WALLPAPER_SRC_FILE não encontrado!"
-fi
-
-# ------------------------------------------------------------
-# 16. Cria script de atualização e agendamento (Cron)
+# 18. Cria script de atualização e agendamento (Cron)
 # ------------------------------------------------------------
 echo "[INFO] Criando script de atualização mensal do wallpaper..."
 UPDATE_SCRIPT="/usr/local/bin/update-giusoft-wallpaper.sh"
 UPDATE_LOGFILE="/var/log/update-giusoft-wallpaper.log"
+
+# Define o arquivo de origem e destino do wallpaper
+WALLPAPER_SRC_FILE="$GIT_REPO_DIR/Wallpaper.png"
+WALLPAPER_DEST_FILE="/usr/share/backgrounds/giusoft/Wallpaper.png"
 
 cat > "$UPDATE_SCRIPT" <<EOF
 #!/bin/bash
@@ -314,9 +345,9 @@ cat > /etc/cron.d/giusoft-wallpaper-update <<'EOF'
 EOF
 
 # ------------------------------------------------------------
-# 17. Define e Bloqueia o Papel de Parede (dconf)
+# 19. Define e Bloqueia o Papel de Parede e Extensões (dconf)
 # ------------------------------------------------------------
-echo "[INFO] Configurando e bloqueando o papel de parede padrão..."
+echo "[INFO] Configurando e bloqueando o papel de parede e extensões padrão..."
 
 # Cria os diretórios para as regras e travas
 DCONF_DB_DIR="/etc/dconf/db/local.d"
@@ -324,7 +355,7 @@ DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks"
 mkdir -p "$DCONF_DB_DIR"
 mkdir -p "$DCONF_LOCK_DIR"
 
-# Define o papel de parede padrão (modos claro e escuro)
+# --- Perfil de Wallpaper ---
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
@@ -332,7 +363,7 @@ picture-uri-dark='file://$WALLPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
-# Bloqueia a alteração do papel de parede
+# --- Trava do Wallpaper ---
 cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 # Impede que usuários alterem o papel de parede
 /org/gnome/desktop/background/picture-uri
@@ -340,9 +371,20 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 /org/gnome/desktop/background/picture-options
 EOF
 
-# --- INÍCIO DA CORREÇÃO ---
-# Garante que o perfil de usuário do dconf exista e leia o banco de dados 'local'
-# Sem isso, os bloqueios do sistema (system-db) não são aplicados.
+# --- Perfil de Extensão (NOVO) ---
+cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
+[org/gnome/shell]
+# Ativa a extensão 'activate_gnome' para todos os usuários
+enabled-extensions=['activate_gnome@r-pr']
+EOF
+
+# --- Trava da Extensão (NOVO) ---
+cat > "$DCONF_LOCK_DIR/02-giusoft-extensions" <<EOF
+# Impede que usuários modifiquem a lista de extensões ativadas
+/org/gnome/shell/enabled-extensions
+EOF
+
+# --- INÍCIO DA CORREÇÃO DE PERFIL DCONF ---
 echo "[INFO] Garantindo a existência do perfil dconf 'user'..."
 mkdir -p /etc/dconf/profile/
 tee /etc/dconf/profile/user > /dev/null <<'EOF'
@@ -357,22 +399,24 @@ echo "[INFO] Atualizando banco de dados dconf..."
 dconf update
 
 # ------------------------------------------------------------
-# 18. Garante permissões corretas no Wallpaper
+# 20. Garante permissões corretas no Wallpaper
 # ------------------------------------------------------------
-echo "[INFO] Ajustando permissões do arquivo de wallpaper..."
-if [ -f "$WALLPAPER_DEST_FILE" ]; then
+echo "[INFO] Copiando e ajustando permissões do arquivo de wallpaper..."
+mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
+if [ -f "$WALLPAPER_SRC_FILE" ]; then
+    cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DEST_FILE"
     chmod 644 "$WALLPAPER_DEST_FILE"
 else
-    echo "[WARN] Arquivo $WALLPAPER_DEST_FILE não encontrado! O wallpaper não será aplicado."
+    echo "[WARN] Arquivo fonte $WALLPAPER_SRC_FILE não encontrado! O wallpaper não será aplicado."
 fi
 
 # ============================================================
-# FIM DA SEÇÃO DE WALLPAPER
+# FIM DA SEÇÃO DE WALLPAPER E EXTENSÕES
 # ============================================================
 
 
 # ------------------------------------------------------------
-# 19. Oculta Aplicações do Menu (NoDisplay)
+# 21. Oculta Aplicações do Menu (NoDisplay)
 # ------------------------------------------------------------
 echo "[INFO] Ocultando aplicações desnecessárias do menu..."
 
@@ -498,32 +542,4 @@ done
 
 # ------------------------------------------------------------
 # Finalização
-# ------------------------------------------------------------
-echo ""
-echo "============================================================"
-echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
-echo "Log salvo em: $LOGFILE"
-echo "IMPORTANTE: Faça LOGOUT e LOGIN para que o wallpaper e outras configs tenham efeito."
-echo "============================================================"
-echo ""
-echo "Próximos passos manuais recomendados:"
-echo ""
-echo "1. Fazer o join no FreeIPA (ipa.gs.internal):"
-echo "   =========================================="
-echo "   # Se caso exista, desinstale restos da tentativa anterior:"
-echo "   sudo ipa-client-install --uninstall -U"
-echo ""
-echo "   # Agora rode o join diretamente:"
-echo "   sudo ipa-client-install \\"
-echo "     --mkhomedir \\"
-echo "     --no-ntp \\"
-echo "     --server=ipa.gs.internal \\"
-echo "     --domain=gs.internal \\"
-echo "     --principal=admin"
-echo ""
-echo "2. Autentique o Tailscale:"
-echo "   sudo tailscale up"
-echo ""
-echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
-echo "   sudo usermod -aG powerusers nome_do_usuario"
-echo "------------------------------------------------------------"
+#
