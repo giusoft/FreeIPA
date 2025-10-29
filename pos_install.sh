@@ -3,11 +3,11 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v3 - Corrigido):
-#   - Atualiza repositórios e instala pacotes essenciais
+# Descrição Unificada (v4 - Correção GitHub):
+#   - Atualiza repositórios e instala pacotes essenciais (incluindo unzip)
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
-#   - Instala e ativa a extensão GNOME 'activate_gnome' system-wide
+#   - Instala e ativa a extensão GNOME 'activate_gnome' via ZIP (Evita login GitHub)
 #   - Cria script de info (IP/Hostname) para a extensão
 #   - Cria grupo 'powerusers' com permissões especiais via polkit
 #   - Configura RustDesk com bloqueio de preferências (Lógica corrigida)
@@ -26,10 +26,11 @@ echo "Log será salvo em: $LOGFILE"
 
 # ------------------------------------------------------------
 # 1. Atualiza sistema e garante conectividade
+#    *** MODIFICADO: Adicionado 'unzip' ***
 # ------------------------------------------------------------
 echo "[INFO] Atualizando pacotes base..."
 apt update -y
-apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git
+apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git unzip
 
 # ------------------------------------------------------------
 # 2. Habilita repositórios adicionais
@@ -107,30 +108,52 @@ rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
 # 10. Instala Extensão GNOME 'activate_gnome'
+#     *** MODIFICADO: Usa WGET + UNZIP para evitar login GitHub ***
 # ------------------------------------------------------------
 echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide..."
 EXTENSION_UUID="activate_gnome@r-pr"
 EXTENSION_DIR="/usr/share/gnome-shell/extensions/$EXTENSION_UUID"
-EXTENSION_REPO="https://github.com/PR-l/activate_gnome.git"
-TMP_REPO_DIR="/tmp/activate_gnome"
+EXTENSION_ZIP_URL="https://github.com/PR-l/activate_gnome/archive/refs/heads/main.zip"
+TMP_DIR="/tmp/activate_gnome_install"
+TMP_ZIP_FILE="$TMP_DIR/main.zip"
 
 if [ -d "$EXTENSION_DIR" ]; then
     echo "[INFO] Extensão 'activate_gnome' já parece estar instalada. Pulando."
 else
-    git clone "$EXTENSION_REPO" "$TMP_REPO_DIR"
-    mkdir -p "$EXTENSION_DIR"
-    cp -r "$TMP_REPO_DIR/." "$EXTENSION_DIR/"
-    chmod -R 755 "$EXTENSION_DIR"
-    
-    # Compila os schemas (crucial para a extensão ser reconhecida)
-    if [ -f "$EXTENSION_DIR/schemas/org.gnome.shell.extensions.activate_gnome.gschema.xml" ]; then
-        echo "[INFO] Compilando schemas da extensão..."
-        glib-compile-schemas "$EXTENSION_DIR/schemas/"
+    echo "[INFO] Baixando extensão de $EXTENSION_ZIP_URL..."
+    mkdir -p "$TMP_DIR"
+    # Usar wget (que já está instalado) para baixar o zip
+    if ! wget -q "$EXTENSION_ZIP_URL" -O "$TMP_ZIP_FILE"; then
+        echo "[ERRO] Falha ao baixar o ZIP da extensão. Pulando."
     else
-        echo "[WARN] Arquivo de schema não encontrado. A extensão pode não funcionar."
+        # Extrair o zip
+        unzip -q "$TMP_ZIP_FILE" -d "$TMP_DIR"
+        
+        # O zip extrai para uma pasta como 'activate_gnome-main', encontrar essa pasta
+        EXTRACTED_DIR=$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d -name "*activate_gnome*")
+        
+        if [ -z "$EXTRACTED_DIR" ]; then
+            echo "[ERRO] Falha ao encontrar a pasta extraída da extensão. Pulando."
+        else
+            echo "[INFO] Copiando arquivos para $EXTENSION_DIR"
+            mkdir -p "$EXTENSION_DIR"
+            # Copia o *conteúdo* da pasta extraída
+            cp -r "$EXTRACTED_DIR/." "$EXTENSION_DIR/"
+            chmod -R 755 "$EXTENSION_DIR"
+            
+            # Compila os schemas (crucial para a extensão ser reconhecida)
+            if [ -f "$EXTENSION_DIR/schemas/org.gnome.shell.extensions.activate_gnome.gschema.xml" ]; then
+                echo "[INFO] Compilando schemas da extensão..."
+                glib-compile-schemas "$EXTENSION_DIR/schemas/"
+            else
+                echo "[WARN] Arquivo de schema não encontrado. A extensão pode não funcionar."
+            fi
+            echo "[INFO] Extensão 'activate_gnome' instalada."
+        fi
+        
+        # Limpeza
+        rm -rf "$TMP_DIR"
     fi
-    rm -rf "$TMP_REPO_DIR"
-    echo "[INFO] Extensão 'activate_gnome' instalada."
 fi
 
 # ------------------------------------------------------------
@@ -209,6 +232,7 @@ apt install -y \
 
 # ------------------------------------------------------------
 # 13. Configuração do RustDesk (bloqueio e template)
+#     *** LÓGICA CORRIGIDA ***
 # ------------------------------------------------------------
 echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
 
@@ -354,7 +378,7 @@ echo "[INFO] Configurando e bloqueando o papel de parede e extensões padrão...
 
 # Cria os diretórios para as regras e travas
 DCONF_DB_DIR="/etc/dconf/db/local.d"
-DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks"
+DCONF_LOCK_DIR="/etc/dcolocal.d/locks"
 mkdir -p "$DCONF_DB_DIR"
 mkdir -p "$DCONF_LOCK_DIR"
 
@@ -362,7 +386,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPLAYPAPER_DEST_FILE'
+picture-uri-dark='file://$WALLPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -544,7 +568,7 @@ done
 
 
 # ------------------------------------------------------------
-# 22. Finalização (Adicionada)
+# 22. Finalização
 # ------------------------------------------------------------
 echo ""
 echo "============================================================"
