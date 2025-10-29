@@ -3,14 +3,18 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v4):
-#   - Atualiza repositórios e instala pacotes essenciais (incluindo unzip)
+# Descrição Unificada (v5 - Incorporando ext.sh):
+#   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
-#   - Instala e ativa a extensão GNOME 'activate_gnome' via ZIP (Evita login GitHub)
-#   - Cria script de info (IP/Hostname) para a extensão
+#   - Instala e ativa a extensão GNOME 'activate_gnome' (do repo GiuSoft)
+#     usando o método system-wide (glib-compile-schemas)
+#   - Configura RustDesk (lógica de ext.sh) com 3 arquivos em /etc/skel
+#   - Cria script de login (update-user-info.sh) para atualizar IP na extensão
+#     e no config do RustDesk
+#   - Cria autostart para o script de login
+#   - Aplica config do RustDesk a usuários existentes
 #   - Cria grupo 'powerusers' com permissões especiais via polkit
-#   - Configura RustDesk com bloqueio de preferências (Lógica corrigida)
 #   - Configura e bloqueia o wallpaper corporativo via dconf
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
@@ -29,7 +33,7 @@ echo "Log será salvo em: $LOGFILE"
 # ------------------------------------------------------------
 echo "[INFO] Atualizando pacotes base..."
 apt update -y
-apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git unzip
+apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git unzip gnome-shell-extensions
 
 # ------------------------------------------------------------
 # 2. Habilita repositórios adicionais
@@ -67,7 +71,7 @@ echo "[INFO] Atualizando lista de pacotes..."
 apt update -y
 
 # ------------------------------------------------------------
-# 7. Clona Repositório GiuSoft (Necessário para Zoiper e Wallpaper)
+# 7. Clona Repositório GiuSoft (Necessário para Zoiper, Wallpaper e Extensão)
 # ------------------------------------------------------------
 echo "[INFO] Clonando repositório GiuSoft..."
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
@@ -106,80 +110,56 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'activate_gnome'
+# 10. Instala Extensão GNOME 'activate_gnome' (Lógica do ext.sh)
 # ------------------------------------------------------------
-echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide..."
-EXTENSION_UUID="activate_gnome@r-pr"
-EXTENSION_DIR="/usr/share/gnome-shell/extensions/$EXTENSION_UUID"
-EXTENSION_ZIP_URL="https://github.com/PR-l/activate_gnome/archive/refs/heads/main.zip"
-TMP_DIR="/tmp/activate_gnome_install"
-TMP_ZIP_FILE="$TMP_DIR/main.zip"
+echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide (do repo GiuSoft)..."
+EXT_SRC_ROOT="$GIT_REPO_DIR/activate_gnome"
+EXT_UUID="activate_gnome@isjerryxiao"
+EXT_COMPILED_DIR="$EXT_SRC_ROOT/$EXT_UUID"
+EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
+EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
 
-if [ -d "$EXTENSION_DIR" ]; then
-    echo "[INFO] Extensão 'activate_gnome' já parece estar instalada. Pulando."
-else
-    echo "[INFO] Baixando extensão de $EXTENSION_ZIP_URL..."
-    mkdir -p "$TMP_DIR"
-    # Usar wget (que já está instalado) para baixar o zip
-    if ! wget -q "$EXTENSION_ZIP_URL" -O "$TMP_ZIP_FILE"; then
-        echo "[ERRO] Falha ao baixar o ZIP da extensão. Pulando."
-    else
-        # Extrair o zip
-        unzip -q "$TMP_ZIP_FILE" -d "$TMP_DIR"
+if [ -d "$EXT_SRC_ROOT" ]; then
+    echo "[INFO] Compilando a extensão (make)..."
+    if make -C "$EXT_SRC_ROOT"; then
+        echo "[INFO] Make concluído."
         
-        # O zip extrai para uma pasta como 'activate_gnome-main', encontrar essa pasta
-        EXTRACTED_DIR=$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d -name "*activate_gnome*")
-        
-        if [ -z "$EXTRACTED_DIR" ]; then
-            echo "[ERRO] Falha ao encontrar a pasta extraída da extensão. Pulando."
-        else
-            echo "[INFO] Copiando arquivos para $EXTENSION_DIR"
-            mkdir -p "$EXTENSION_DIR"
-            # Copia o *conteúdo* da pasta extraída
-            cp -r "$EXTRACTED_DIR/." "$EXTENSION_DIR/"
-            chmod -R 755 "$EXTENSION_DIR"
+        if [ -d "$EXT_COMPILED_DIR" ]; then
+            echo "[INFO] Copiando arquivos da extensão para $EXT_DEST_SYSLOC"
+            rm -rf "$EXT_DEST_DIR" # Remove instalação antiga se existir
+            cp -r "$EXT_COMPILED_DIR" "$EXT_DEST_SYSLOC/"
             
-            # Compila os schemas (crucial para a extensão ser reconhecida)
-            if [ -f "$EXTENSION_DIR/schemas/org.gnome.shell.extensions.activate_gnome.gschema.xml" ]; then
-                echo "[INFO] Compilando schemas da extensão..."
-                glib-compile-schemas "$EXTENSION_DIR/schemas/"
+            # --- 10b. Registrar o Schema (Método Corrigido do ext.sh) ---
+            SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.activate-gnome.gschema.xml"
+            SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
+            
+            if [ -f "$SCHEMA_FILE" ]; then
+                echo "[INFO] Copiando schema para $SCHEMA_DEST_DIR"
+                cp "$SCHEMA_FILE" "$SCHEMA_DEST_DIR"
+                
+                echo "[INFO] Recompilando schemas do sistema..."
+                glib-compile-schemas "$SCHEMA_DEST_DIR"
+                echo "[INFO] Schema da extensão registrado com sucesso."
             else
-                echo "[WARN] Arquivo de schema não encontrado. A extensão pode não funcionar."
+                echo "[AVISO] Não foi possível encontrar o arquivo de schema em $SCHEMA_FILE"
             fi
-            echo "[INFO] Extensão 'activate_gnome' instalada."
+            
+        else
+            echo "[ERRO] Diretório compilado $EXT_COMPILED_DIR não encontrado após o 'make'."
         fi
-        
-        # Limpeza
-        rm -rf "$TMP_DIR"
+    else
+        echo "[ERRO] Falha ao executar 'make' em $EXT_SRC_ROOT"
     fi
+else
+    echo "[ERRO] Diretório fonte da extensão $EXT_SRC_ROOT não encontrado. Pulando."
 fi
 
-# ------------------------------------------------------------
-# 11. Cria script de info para a extensão 'activate_gnome'
-# ------------------------------------------------------------
-echo "[INFO] Criando script de informações em /usr/local/bin/activate_gnome_script.sh"
-cat > /usr/local/bin/activate_gnome_script.sh <<'EOF'
-#!/bin/bash
-HOST=$(hostname)
-IP=$(hostname -I | awk '{for(i=1;i<=NF;i++) if ($i !~ /^127/ && $i !~ /^172\.17/ && $i !~ /^172\.18/) {print $i; exit}}')
-
-# Fallback se o IP estiver vazio (ex: sem rede, só loopback)
-if [ -z "$IP" ]; then
-    IP=$(hostname -I | awk '{print $1}') # Pega o primeiro IP que encontrar
-fi
-if [ -z "$IP" ]; then
-    IP="N/A" # Caso extremo
-fi
-
-# Gera o JSON que a extensão espera
-echo "{\"text\": \"$HOST ($IP)\", \"tooltip\": \"Hostname: $HOST\nIP: $IP\", \"class\": \"activate_gnome_class\"}"
-EOF
-chmod +x /usr/local/bin/activate_gnome_script.sh
 
 # ------------------------------------------------------------
-# 12. Instala pacotes principais (ownCloud, Chrome e outros)
+# 11. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
+# (Seção 12 do script original, movida para 11)
 apt install -y \
     google-chrome-stable \
     owncloud-client \
@@ -229,67 +209,250 @@ apt install -y \
     thunderbird
 
 # ------------------------------------------------------------
-# 13. Configuração do RustDesk (bloqueio e template)
-#     *** LÓGICA CORRIGIDA ***
+# 12. Configuração do /etc/skel (Lógica do ext.sh)
 # ------------------------------------------------------------
-echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
+echo "[INFO] Configurando /etc/skel para novos usuários (lógica ext.sh)..."
+SKEL_RUSTDESK_DIR="/etc/skel/.config/rustdesk"
+mkdir -p "$SKEL_RUSTDESK_DIR"
 
-# Detecta o IP local automaticamente (ignora loopback e docker)
-LOCAL_IP=$(hostname -I | awk '{for(i=1;i<=NF;i++) if ($i !~ /^127/ && $i !~ /^172\.17/ && $i !~ /^172\.18/) {print $i; exit}}')
-RUSTDESK_DIR="/etc/skel/.config/rustdesk"
-GLOBAL_RUSTDESK_DIR="/etc/rustdesk"
-mkdir -p "$RUSTDESK_DIR" "$GLOBAL_RUSTDESK_DIR"
+# Criando RustDesk.toml
+cat <<'EOF' > "$SKEL_RUSTDESK_DIR/RustDesk.toml"
+enc_id = '00nAPJRv40Kdl+RleWnncpKi6uY8jRfMCxe5Y='
+password = ''
+salt = '7cbs8z'
+key_pair = [
+    [
+    144,
+    46,
+    146,
+    10,
+    183,
+    14,
+    186,
+    12,
+    185,
+    204,
+    145,
+    217,
+    49,
+    76,
+    25,
+    136,
+    177,
+    187,
+    5,
+    231,
+    251,
+    100,
+    14,
+    23,
+    17,
+    204,
+    220,
+    96,
+    202,
+    143,
+    173,
+    179,
+    137,
+    105,
+    243,
+    0,
+    128,
+    122,
+    177,
+    83,
+    107,
+    59,
+    38,
+    172,
+    27,
+    98,
+    185,
+    74,
+    114,
+    156,
+    12,
+    196,
+    51,
+    122,
+    223,
+    95,
+    247,
+    216,
+    131,
+    28,
+    125,
+    7,
+    251,
+    99,
+],
+    [
+    137,
+    105,
+    243,
+    0,
+    128,
+    122,
+    177,
+    83,
+    107,
+    59,
+    38,
+    172,
+    27,
+    98,
+    185,
+    74,
+    114,
+    156,
+    12,
+    196,
+    51,
+    122,
+    223,
+    95,
+    247,
+    216,
+    131,
+    28,
+    125,
+    7,
+    251,
+    99,
+],
+]
+key_confirmed = true
 
-cat > "$RUSTDESK_DIR/RustDesk2.toml" <<EOF
-[options]
-relay-server = "block.ornan.duckdns.org"
-enable-clipboard = true
-enable-audio = true
-start-with-system = true
-minimize-to-tray = true
-enable-nat-traversal = false
-direct-ips = ["${LOCAL_IP}/24"]
-direct-server = "${LOCAL_IP}"
-direct-port = 21118
-ask-for-authorization = true
-one-click-approve = true
-one-click-mode = true
-use-public-server = false
-api-server = ""
-key = ""
-show-tray-icon = true
+[keys_confirmed]
+rs-ny = true
 EOF
 
-# IMPORTANTE: Permissão 644 (gravável pelo dono) para o template do skel
-chmod 644 "$RUSTDESK_DIR/RustDesk2.toml"
+# Criando RustDesk_local.toml
+cat <<'EOF' > "$SKEL_RUSTDESK_DIR/RustDesk_local.toml"
+remote_id = ''
+kb_layout_type = ''
+size = [
+    0,
+    0,
+    0,
+    0,
+]
+fav = []
 
-# O global /etc/rustdesk/ pode ser read-only (444) para bloqueio
-cp -f "$RUSTDESK_DIR/RustDesk2.toml" "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
-chmod 444 "$GLOBAL_RUSTDESK_DIR/RustDesk2.toml"
+[options]
+
+[ui_flutter]
+peer-sorting = 'Remote ID'
+wm_Main = '{"width":800.0,"height":600.0,"offsetWidth":0.0,"offsetHeight":0.0,"isMaximized":false,"isFullscreen":false}'
+EOF
+
+# Criando RustDesk2.toml.template (Note o .template)
+cat <<'EOF' > "$SKEL_RUSTDESK_DIR/RustDesk2.toml.template"
+rendezvous_server = 'rs-ny.rustdesk.com:21116'
+nat_type = 1
+serial = 0
+unlock_pin = ''
+trusted_devices = ''
+
+[options]
+direct-server = 'Y'
+approve-mode = 'click'
+av1-test = 'Y'
+local-ip-addr = '__CURRENT_IP__'
+EOF
+
+echo "[INFO] Arquivos do RustDesk criados em /etc/skel/.config/rustdesk/"
 
 # ------------------------------------------------------------
-# 14. Cria script /etc/profile.d para novos usuários
+# 13. Criação do Script de Login (Lógica do ext.sh)
 # ------------------------------------------------------------
-echo "[INFO] Criando script para copiar configs RustDesk no primeiro login..."
-
-cat > /etc/profile.d/copy-rustdesk-config.sh <<'EOF'
+echo "[INFO] Criando script de atualização /usr/local/bin/update-user-info.sh..."
+cat <<'EOF' > "/usr/local/bin/update-user-info.sh"
 #!/bin/bash
-CONFIG_FILE="$HOME/.config/rustdesk/RustDesk2.toml"
-TEMPLATE_FILE="/etc/skel/.config/rustdesk/RustDesk2.toml"
+# Este script é executado no login do usuário para atualizar informações dinâmicas.
 
-# Só executa se o arquivo de template existir E o config do usuário AINDA NÃO existir
-if [ -f "$TEMPLATE_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
-    mkdir -p "$(dirname "$CONFIG_FILE")"
-    cp "$TEMPLATE_FILE" "$CONFIG_FILE"
-    # Não é preciso 'chown', pois este script roda como o próprio usuário no login.
-    # O arquivo copiado será 'user:user 644' e o RustDesk poderá escrever nele.
-    echo "[INFO] Configuração inicial do RustDesk copiada para $CONFIG_FILE"
+# Aguarda um pouco para garantir que a sessão do GNOME esteja pronta
+sleep 8
+
+# --- Configuração de Ambiente para gsettings ---
+export DISPLAY=:0
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+
+# --- 1. Obter Hostname e IP ---
+# Obtém o primeiro IP não-localhost (confiável para a maioria das conexões LAN)
+CURRENT_IP=$(hostname -I | awk '{for(i=1;i<=NF;i++) if ($i !~ /^127/ && $i !~ /^172\.17/ && $i !~ /^172\.18/) {print $i; exit}}')
+# Fallback se o IP estiver vazio (ex: sem rede, só loopback)
+if [ -z "$CURRENT_IP" ]; then
+    CURRENT_IP=$(hostname -I | awk '{print $1}') # Pega o primeiro IP que encontrar
+fi
+CURRENT_HOSTNAME=$(hostname)
+
+# --- 2. Atualizar a Extensão GNOME (Corrigido) ---
+if command -v gsettings &> /dev/null; then
+    SCHEMA="org.gnome.shell.extensions.activate-gnome"
+    
+    # CORREÇÃO: Linha 1 para Hostname
+    gsettings set $SCHEMA "label-text" "$CURRENT_HOSTNAME"
+    
+    # CORREÇÃO: Linha 2 para IP
+    gsettings set $SCHEMA "label-text-2" "$CURRENT_IP"
+    
+    # A ativação da extensão será feita via dconf (Seção 23)
+fi
+
+# --- 3. Atualizar Configuração do RustDesk ---
+RUSTDESK_DIR="$HOME/.config/rustdesk"
+TEMPLATE_FILE="$RUSTDESK_DIR/RustDesk2.toml.template"
+CONFIG_FILE="$RUSTDESK_DIR/RustDesk2.toml"
+
+# Verifica se o arquivo de template existe
+if [ -f "$TEMPLATE_FILE" ]; then
+    # Substitui o placeholder __CURRENT_IP__ pelo IP real
+    sed "s|__CURRENT_IP__|$CURRENT_IP|" "$TEMPLATE_FILE" > "$CONFIG_FILE"
 fi
 EOF
-chmod 755 /etc/profile.d/copy-rustdesk-config.sh
+
+# Tornar o script de login executável
+chmod +x /usr/local/bin/update-user-info.sh
 
 # ------------------------------------------------------------
-# 15. Cria grupo powerusers e regra polkit
+# 14. Criação do Arquivo Autostart (Lógica do ext.sh)
+# ------------------------------------------------------------
+echo "[INFO] Criando gatilho de login em /etc/xdg/autostart/..."
+cat <<'EOF' > "/etc/xdg/autostart/update-user-info.desktop"
+[Desktop Entry]
+Type=Application
+Name=Update User Info
+Comment=Atualiza o IP e Hostname no login
+Exec=/usr/local/bin/update-user-info.sh
+OnlyShowIn=GNOME;
+Terminal=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+# ------------------------------------------------------------
+# 15. Aplicar aos Usuários EXISTENTES (Lógica do ext.sh)
+# ------------------------------------------------------------
+echo "[INFO] Aplicando configurações do RustDesk para usuários existentes em /home/..."
+for D in /home/*; do
+  if [ -d "$D" ]; then
+    USER=$(basename "$D")
+    USER_RUSTDESK_DIR="$D/.config/rustdesk"
+    
+    echo "Configurando para o usuário: $USER"
+    mkdir -p "$USER_RUSTDESK_DIR"
+    
+    # Copia os arquivos do skel, -n (noclobber) não sobrescreve se já existirem
+    cp -n /etc/skel/.config/rustdesk/* "$USER_RUSTDESK_DIR/"
+    
+    # Garante que o usuário seja o dono dos seus arquivos de configuração
+    chown -R "$USER:$USER" "$D/.config"
+  fi
+done
+
+# ------------------------------------------------------------
+# 16. Cria grupo powerusers e regra polkit
 # ------------------------------------------------------------
 echo "[INFO] Criando grupo powerusers e regra polkit..."
 groupadd -f powerusers
@@ -306,14 +469,14 @@ EOF
 chmod 644 /etc/polkit-1/rules.d/40-regras-personalizadas.rules
 
 # ------------------------------------------------------------
-# 16. Instala e habilita Tailscale
+# 17. Instala e habilita Tailscale
 # ------------------------------------------------------------
 echo "[INFO] Instalando Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | bash
 systemctl enable --now tailscaled
 
 # ------------------------------------------------------------
-# 17. Habilita SSH
+# 18. Habilita SSH
 # ------------------------------------------------------------
 echo "[INFO] Habilitando SSH..."
 systemctl enable --now ssh
@@ -323,7 +486,7 @@ systemctl enable --now ssh
 # ============================================================
 
 # ------------------------------------------------------------
-# 18. Cria script de atualização e agendamento (Cron)
+# 19. Cria script de atualização e agendamento (Cron)
 # ------------------------------------------------------------
 echo "[INFO] Criando script de atualização mensal do wallpaper..."
 UPDATE_SCRIPT="/usr/local/bin/update-giusoft-wallpaper.sh"
@@ -366,13 +529,13 @@ cat > /etc/cron.d/giusoft-wallpaper-update <<'EOF'
 EOF
 
 # ------------------------------------------------------------
-# 19. Define e Bloqueia o Papel de Parede e Extensões (dconf)
+# 20. Define e Bloqueia o Papel de Parede e Extensões (dconf)
 # ------------------------------------------------------------
 echo "[INFO] Configurando e bloqueando o papel de parede e extensões padrão..."
 
 # Cria os diretórios para as regras e travas
 DCONF_DB_DIR="/etc/dconf/db/local.d"
-DCONF_LOCK_DIR="/etc/dcolocal.d/locks"
+DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks" # Corrigido: /etc/dconf/db/local.d/locks
 mkdir -p "$DCONF_DB_DIR"
 mkdir -p "$DCONF_LOCK_DIR"
 
@@ -392,14 +555,14 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 /org/gnome/desktop/background/picture-options
 EOF
 
-# --- Perfil de Extensão (NOVO) ---
+# --- Perfil de Extensão (ATUALIZADO) ---
 cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
 [org/gnome/shell]
 # Ativa a extensão 'activate_gnome' para todos os usuários
-enabled-extensions=['activate_gnome@r-pr']
+enabled-extensions=['$EXT_UUID']
 EOF
 
-# --- Trava da Extensão (NOVO) ---
+# --- Trava da Extensão ---
 cat > "$DCONF_LOCK_DIR/02-giusoft-extensions" <<EOF
 # Impede que usuários modifiquem a lista de extensões ativadas
 /org/gnome/shell/enabled-extensions
@@ -420,7 +583,7 @@ echo "[INFO] Atualizando banco de dados dconf..."
 dconf update
 
 # ------------------------------------------------------------
-# 20. Garante permissões corretas no Wallpaper
+# 21. Garante permissões corretas no Wallpaper
 # ------------------------------------------------------------
 echo "[INFO] Copiando e ajustando permissões do arquivo de wallpaper..."
 mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
@@ -437,7 +600,7 @@ fi
 
 
 # ------------------------------------------------------------
-# 21. Oculta Aplicações do Menu (NoDisplay)
+# 22. Oculta Aplicações do Menu (NoDisplay)
 # ------------------------------------------------------------
 echo "[INFO] Ocultando aplicações desnecessárias do menu..."
 
@@ -562,13 +725,13 @@ done
 
 
 # ------------------------------------------------------------
-# 22. Finalização
+# 23. Finalização
 # ------------------------------------------------------------
 echo ""
 echo "============================================================"
 echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
 echo "Log salvo em: $LOGFILE"
-echo "IMPORTANTE: Faça LOGOUT e LOGIN para que o wallpaper e as extensões tenham efeito."
+echo "IMPORTANTE: REINICIE O COMPUTADOR para que todas as alterações (dconf, autostart, skel) tenham efeito."
 echo "============================================================"
 echo ""
 echo "Próximos passos manuais recomendados:"
@@ -592,3 +755,4 @@ echo ""
 echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
 echo "   sudo usermod -aG powerusers nome_do_usuario"
 echo "------------------------------------------------------------"
+
