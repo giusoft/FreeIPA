@@ -1,0 +1,14 @@
+{
+    "name": "Show Hostname and IP",
+    "description": "Shows hostname and local IP address on your screen.",
+    "uuid": "activate_gnome@isjerryxiao",
+    "settings-schema": "org.gnome.shell.extensions.activate_gnome",
+    "shell-version": [
+        "45",
+        "46",
+        "47",
+        "48"
+    ],
+    "version": 13,
+    "url": "https://github.com/isjerryxiao/gnome-shell-extension-activate-gnome"
+}
