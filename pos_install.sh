@@ -2,14 +2,17 @@
 # ============================================================
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
-# Descrição:
+#
+# Descrição Unificada:
 #   - Atualiza repositórios e instala pacotes essenciais
-#   - Configura repositório Google Chrome
-#   - Instala ferramentas multimídia e LibreOffice em pt-BR
+#   - Configura repositórios (Google Chrome, ownCloud Client)
+#   - Instala pacotes (Zoiper, RustDesk, Tailscale, LibreOffice, etc.)
 #   - Cria grupo 'powerusers' com permissões especiais via polkit
-#   - Instala e configura RustDesk com bloqueio de preferências
-#   - Copia configs padrão para novos usuários via /etc/profile.d
-#   - Instala e habilita Tailscale
+#   - Configura RustDesk com bloqueio de preferências
+#   - Configura e bloqueia o wallpaper corporativo via dconf (com correção de perfil)
+#   - Cria cron job para atualizar o wallpaper mensalmente
+#   - Oculta aplicações desnecessárias do menu
+#   - Instala e habilita Tailscale e SSH
 # ============================================================
 
 set -euo pipefail
@@ -17,6 +20,7 @@ LOGFILE="/var/log/pos-instalacao-giusoft.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "=== Iniciando pós-instalação GiuSoft ==="
+echo "Log será salvo em: $LOGFILE"
 
 # ------------------------------------------------------------
 # 1. Atualiza sistema e garante conectividade
@@ -41,20 +45,68 @@ echo "[INFO] Configurando repositório do Google Chrome..."
 mkdir -p /etc/apt/keyrings
 wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | tee /etc/apt/keyrings/google-chrome.gpg > /dev/null
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-apt update -y
 
 # ------------------------------------------------------------
-# 4. Aceita EULA das fontes Microsoft
+# 4. Configura repositório ownCloud Client
+# ------------------------------------------------------------
+echo "[INFO] Configurando repositório do ownCloud Client..."
+wget -nv https://download.owncloud.com/desktop/ownCloud/stable/latest/linux/Ubuntu_24.04/Release.key -O - | gpg --dearmor | tee /etc/apt/trusted.gpg.d/owncloud-client.gpg > /dev/null
+echo 'deb https://download.owncloud.com/desktop/ownCloud/stable/latest/linux/Ubuntu_24.04/ /' | tee -a /etc/apt/sources.list.d/owncloud-client.list
+
+# ------------------------------------------------------------
+# 5. Aceita EULA das fontes Microsoft
 # ------------------------------------------------------------
 echo "[INFO] Aceitando EULA das fontes Microsoft..."
 echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
 
 # ------------------------------------------------------------
-# 5. Instala pacotes principais
+# 6. Atualiza APT após adicionar novos repos
+# ------------------------------------------------------------
+echo "[INFO] Atualizando lista de pacotes..."
+apt update -y
+
+# ------------------------------------------------------------
+# 7. Instala Zoiper 5 (Requer URL manual)
+# ------------------------------------------------------------
+echo "[INFO] Instalando Zoiper 5..."
+
+# !!! ATENÇÃO !!!
+# O Zoiper não fornece um link de download .deb direto e estável.
+# 1. Vá para: https://www.zoiper.com/en/voip-softphone/download/zoiper5/for/linux-deb
+# 2. Clique com o botão direito em "Debian package" (versão Free) e copie o link.
+# 3. Cole o link abaixo.
+ZOIPER_URL="COLE_O_URL_DO_DEB_AQUI"
+
+if [ "$ZOIPER_URL" == "COLE_O_URL_DO_DEB_AQUI" ]; then
+    echo "[AVISO] URL do Zoiper não definida. Pulando instalação."
+    echo "[AVISO] Edite este script e defina a variável ZOIPER_URL."
+else
+    echo "[INFO] Baixando Zoiper de $ZOIPER_URL..."
+    wget -q "$ZOIPER_URL" -O /tmp/zoiper5.deb
+    if [ $? -eq 0 ]; then
+        apt install -y /tmp/zoiper5.deb
+        rm -f /tmp/zoiper5.deb
+    else
+        echo "[ERRO] Falha ao baixar o Zoiper. Verifique o URL."
+    fi
+fi
+
+# ------------------------------------------------------------
+# 8. Instala RustDesk
+# ------------------------------------------------------------
+echo "[INFO] Instalando RustDesk..."
+RUSTDESK_URL="https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb"
+wget -q "$RUSTDESK_URL" -O /tmp/rustdesk.deb
+apt install -y /tmp/rustdesk.deb
+rm -f /tmp/rustdesk.deb
+
+# ------------------------------------------------------------
+# 9. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
 apt install -y \
     google-chrome-stable \
+    owncloud-client \
     git \
     vim \
     openssh-server \
@@ -101,16 +153,7 @@ apt install -y \
     thunderbird
 
 # ------------------------------------------------------------
-# 6. Instala RustDesk
-# ------------------------------------------------------------
-echo "[INFO] Instalando RustDesk..."
-RUSTDESK_URL="https://github.com/rustdesk/rustdesk/releases/download/1.4.3/rustdesk-1.4.3-x86_64.deb"
-wget -q "$RUSTDESK_URL" -O /tmp/rustdesk.deb
-apt install -y /tmp/rustdesk.deb
-rm -f /tmp/rustdesk.deb
-
-# ------------------------------------------------------------
-# 7. Configuração do RustDesk (bloqueio e template)
+# 10. Configuração do RustDesk (bloqueio e template)
 # ------------------------------------------------------------
 echo "[INFO] Criando configuração padrão e bloqueio do RustDesk..."
 
@@ -153,7 +196,7 @@ for userhome in /home/*; do
 done
 
 # ------------------------------------------------------------
-# 8. Cria script /etc/profile.d para novos usuários
+# 11. Cria script /etc/profile.d para novos usuários
 # ------------------------------------------------------------
 echo "[INFO] Criando script para copiar configs RustDesk no primeiro login..."
 
@@ -170,7 +213,7 @@ EOF
 chmod 755 /etc/profile.d/copy-rustdesk-config.sh
 
 # ------------------------------------------------------------
-# 9. Cria grupo powerusers e regra polkit
+# 12. Cria grupo powerusers e regra polkit
 # ------------------------------------------------------------
 echo "[INFO] Criando grupo powerusers e regra polkit..."
 groupadd -f powerusers
@@ -187,24 +230,29 @@ EOF
 chmod 644 /etc/polkit-1/rules.d/40-regras-personalizadas.rules
 
 # ------------------------------------------------------------
-# 10. Instala e habilita Tailscale
+# 13. Instala e habilita Tailscale
 # ------------------------------------------------------------
 echo "[INFO] Instalando Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | bash
 systemctl enable --now tailscaled
 
 # ------------------------------------------------------------
-# 11. Habilita SSH
+# 14. Habilita SSH
 # ------------------------------------------------------------
 echo "[INFO] Habilitando SSH..."
 systemctl enable --now ssh
 
+# ============================================================
+# INÍCIO DA SEÇÃO DE WALLPAPER (INTEGRADA DO wallpaper.sh)
+# ============================================================
+
 # ------------------------------------------------------------
-# 12. Configura Repositório e Wallpaper Corporativo
+# 15. Configura Repositório e Wallpaper Corporativo
 # ------------------------------------------------------------
 echo "[INFO] Clonando repositório GiuSoft..."
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
-WALLPAPER_FILE="$GIT_REPO_DIR/Wallpaper.png"
+WALLPAPER_SRC_FILE="$GIT_REPO_DIR/Wallpaper.png"
+WALLPAPER_DEST_FILE="/usr/share/backgrounds/giusoft/Wallpaper.png"
 mkdir -p /opt/giusoft
 
 # Clona o repositório se não existir, ou atualiza se já existir
@@ -216,23 +264,42 @@ else
     git clone https://github.com/giusoft/FreeIPA.git "$GIT_REPO_DIR"
 fi
 
-# ------------------------------------------------------------
-# 13. Cria script de atualização e agendamento (Cron)
-# ------------------------------------------------------------
-echo "[INFO] Criando script de atualização mensal do repositório..."
-UPDATE_SCRIPT="/usr/local/bin/update-giusoft-repo.sh"
+# Copia o wallpaper para o diretório padrão do sistema
+echo "[INFO] Copiando wallpaper para $WALLPAPER_DEST_FILE..."
+mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
+if [ -f "$WALLPAPER_SRC_FILE" ]; then
+    cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DEST_FILE"
+else
+     echo "[WARN] Arquivo fonte $WALLPAPER_SRC_FILE não encontrado!"
+fi
 
-cat > "$UPDATE_SCRIPT" <<'EOF'
+# ------------------------------------------------------------
+# 16. Cria script de atualização e agendamento (Cron)
+# ------------------------------------------------------------
+echo "[INFO] Criando script de atualização mensal do wallpaper..."
+UPDATE_SCRIPT="/usr/local/bin/update-giusoft-wallpaper.sh"
+UPDATE_LOGFILE="/var/log/update-giusoft-wallpaper.log"
+
+cat > "$UPDATE_SCRIPT" <<EOF
 #!/bin/bash
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
-LOGFILE="/var/log/update-giusoft-repo.log"
+LOGFILE="$UPDATE_LOGFILE"
 
-echo "=== $(date): Iniciando atualização do repositório ===" >> "$LOGFILE"
-if [ -d "$GIT_REPO_DIR/.git" ]; then
-    (cd "$GIT_REPO_DIR" && git pull) >> "$LOGFILE" 2>&1
-    echo "=== Atualização concluída ===" >> "$LOGFILE"
+echo "=== \$(date): Iniciando atualização do repositório/wallpaper ===" >> "\$LOGFILE"
+if [ -d "\$GIT_REPO_DIR/.git" ]; then
+    (cd "\$GIT_REPO_DIR" && git pull) >> "\$LOGFILE" 2>&1
+    
+    # Atualiza a cópia do wallpaper se ele mudou
+    WALLPAPER_SRC_FILE="\$GIT_REPO_DIR/Wallpaper.png"
+    WALLPAPER_DEST_FILE="/usr/share/backgrounds/giusoft/Wallpaper.png"
+    if [ -f "\$WALLPAPER_SRC_FILE" ]; then
+        cp -f "\$WALLPAPER_SRC_FILE" "\$WALLPAPER_DEST_FILE"
+        chmod 644 "\$WALLPAPER_DEST_FILE"
+    fi
+    
+    echo "=== Atualização concluída ===" >> "\$LOGFILE"
 else
-    echo "ERRO: Diretório $GIT_REPO_DIR não parece ser um repositório git." >> "$LOGFILE"
+    echo "ERRO: Diretório \$GIT_REPO_DIR não parece ser um repositório git." >> "\$LOGFILE"
     exit 1
 fi
 EOF
@@ -240,17 +307,17 @@ EOF
 chmod +x "$UPDATE_SCRIPT"
 
 echo "[INFO] Criando agendamento via cron (todo dia 01 às 10:00)..."
-cat > /etc/cron.d/giusoft-repo-update <<'EOF'
-# Atualiza o repositório GiuSoft mensalmente
-0 10 1 * * root /usr/local/bin/update-giusoft-repo.sh
+cat > /etc/cron.d/giusoft-wallpaper-update <<'EOF'
+# Atualiza o repositório e wallpaper GiuSoft mensalmente
+0 10 1 * * root /usr/local/bin/update-giusoft-wallpaper.sh
 EOF
 
 # ------------------------------------------------------------
-# 14. Define e Bloqueia o Papel de Parede (dconf)
+# 17. Define e Bloqueia o Papel de Parede (dconf)
 # ------------------------------------------------------------
 echo "[INFO] Configurando e bloqueando o papel de parede padrão..."
 
-# Cria o perfil 'local' do dconf para aplicar a todos os usuários
+# Cria os diretórios para as regras e travas
 DCONF_DB_DIR="/etc/dconf/db/local.d"
 DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks"
 mkdir -p "$DCONF_DB_DIR"
@@ -259,8 +326,8 @@ mkdir -p "$DCONF_LOCK_DIR"
 # Define o papel de parede padrão (modos claro e escuro)
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
-picture-uri='file://$WALLPAPER_FILE'
-picture-uri-dark='file://$WALLPAPER_FILE'
+picture-uri='file://$WALLPAPER_DEST_FILE'
+picture-uri-dark='file://$WALLPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -272,22 +339,39 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 /org/gnome/desktop/background/picture-options
 EOF
 
+# --- INÍCIO DA CORREÇÃO ---
+# Garante que o perfil de usuário do dconf exista e leia o banco de dados 'local'
+# Sem isso, os bloqueios do sistema (system-db) não são aplicados.
+echo "[INFO] Garantindo a existência do perfil dconf 'user'..."
+mkdir -p /etc/dconf/profile/
+tee /etc/dconf/profile/user > /dev/null <<'EOF'
+user-db:user
+system-db:local
+system-db:site
+EOF
+# --- FIM DA CORREÇÃO ---
+
 # Aplica as alterações no banco de dados do dconf
 echo "[INFO] Atualizando banco de dados dconf..."
 dconf update
 
 # ------------------------------------------------------------
-# 15. Garante permissões corretas no Wallpaper
+# 18. Garante permissões corretas no Wallpaper
 # ------------------------------------------------------------
 echo "[INFO] Ajustando permissões do arquivo de wallpaper..."
-if [ -f "$WALLPAPER_FILE" ]; then
-    chmod 644 "$WALLPAPER_FILE"
+if [ -f "$WALLPAPER_DEST_FILE" ]; then
+    chmod 644 "$WALLPAPER_DEST_FILE"
 else
-    echo "[WARN] Arquivo $WALLPAPER_FILE não encontrado! O wallpaper não será aplicado."
+    echo "[WARN] Arquivo $WALLPAPER_DEST_FILE não encontrado! O wallpaper não será aplicado."
 fi
 
+# ============================================================
+# FIM DA SEÇÃO DE WALLPAPER
+# ============================================================
+
+
 # ------------------------------------------------------------
-# 16. Oculta Aplicações do Menu (NoDisplay)
+# 19. Oculta Aplicações do Menu (NoDisplay)
 # ------------------------------------------------------------
 echo "[INFO] Ocultando aplicações desnecessárias do menu..."
 
@@ -414,8 +498,13 @@ done
 # ------------------------------------------------------------
 # Finalização
 # ------------------------------------------------------------
-echo "[FINALIZADO] Script concluído com sucesso."
-echo "------------------------------------------------------------"
+echo ""
+echo "============================================================"
+echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
+echo "Log salvo em: $LOGFILE"
+echo "IMPORTANTE: Faça LOGOUT e LOGIN para que o wallpaper e outras configs tenham efeito."
+echo "============================================================"
+echo ""
 echo "Próximos passos manuais recomendados:"
 echo ""
 echo "1. Fazer o join no FreeIPA (ipa.gs.internal):"
@@ -437,5 +526,3 @@ echo ""
 echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
 echo "   sudo usermod -aG powerusers nome_do_usuario"
 echo "------------------------------------------------------------"
-echo "=== Pós-instalação concluída com sucesso ==="
-echo "Log salvo em: $LOGFILE"
