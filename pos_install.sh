@@ -150,6 +150,7 @@ apt install -y \
     lm-sensors \
     htop \
     dconf-cli \
+    gnome-shell-extension-prefs
     thunderbird
 
 # ------------------------------------------------------------
