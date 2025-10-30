@@ -3,7 +3,7 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v6 - Correção RustDesk/Extensão):
+# Descrição Unificada (v7 - Correção de typo):
 #   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
@@ -19,10 +19,6 @@
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
 #   - Instala e habilita Tailscale e SSH
-#
-#   - v6: Corrige lógica do RustDesk. Consolida opções no
-#         RustDesk_local.toml e remove template.
-#         Script de login agora atualiza o toml local (sed -i).
 # ============================================================
 
 set -euo pipefail
@@ -226,7 +222,6 @@ apt install -y \
     arp-scan \
     speedtest-cli
 
-
 # ------------------------------------------------------------
 # 12. Configuração do /etc/skel (Lógica do ext.sh - CORRIGIDA)
 # ------------------------------------------------------------
@@ -374,8 +369,6 @@ local-ip-addr = '__CURRENT_IP__'
 peer-sorting = 'Remote ID'
 wm_Main = '{"width":800.0,"height":600.0,"offsetWidth":0.0,"offsetHeight":0.0,"isMaximized":false,"isFullscreen":false}'
 EOF
-
-# REMOVIDO: RustDesk2.toml.template não é mais necessário
 
 echo "[INFO] Arquivos do RustDesk criados em /etc/skel/.config/rustdesk/"
 
@@ -560,7 +553,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPOSTER_DEST_FILE'
+picture-uri-dark='file://$WALLPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -580,7 +573,7 @@ enabled-extensions=['$EXT_UUID']
 EOF
 
 # --- Trava da Extensão ---
-cat > "$DCONF_LOCK_DIR/02-giusoft-extensions" <<EOF
+cat > "$DCODE_LOCK_DIR/02-giusoft-extensions" <<EOF
 # Impede que usuários modifiquem a lista de extensões ativadas
 /org/gnome/shell/enabled-extensions
 EOF
@@ -605,7 +598,7 @@ dconf update
 echo "[INFO] Copiando e ajustando permissões do arquivo de wallpaper..."
 mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
 if [ -f "$WALLPAPER_SRC_FILE" ]; then
-    cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DEST_FILE"
+    cp -f "$WALLPAYER_SRC_FILE" "$WALLPAPER_DEST_FILE"
     chmod 644 "$WALLPAPER_DEST_FILE"
 else
     echo "[WARN] Arquivo fonte $WALLPAPER_SRC_FILE não encontrado! O wallpaper não será aplicado."
