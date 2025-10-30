@@ -107,13 +107,13 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'hostnameIP' (Lógica CORRIGIDA)
+# 10. Instala Extensão GNOME 'hostnameIP' (Lógica CORRIGIDA v2)
 # ------------------------------------------------------------
 echo "[INFO] Clonando e instalando extensão GNOME 'hostnameIP' system-wide..."
 
 # --- 10a. Clonar o repositório da extensão ---
 EXT_REPO_URL="https://github.com/ornan-matos/gnome-shell-extension-hostnameIP.git"
-EXT_REPO_DIR="/opt/hostnameIP-ext" # Novo diretório de clone
+EXT_REPO_DIR="/opt/hostnameIP-ext" 
 
 if [ -d "$EXT_REPO_DIR/.git" ]; then
     echo "[INFO] Repositório da extensão existente. Atualizando..."
@@ -124,19 +124,18 @@ else
 fi
 
 # --- 10b. Definir UUID e caminhos (CORRIGIDOS) ---
-EXT_UUID="hostnameIP_ornan-matos" # CORRIGIDO: UUID real do metadata.json
-EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos" # CORRIGIDO: Subdiretório real da extensão
+EXT_UUID="hostnameIP_ornan-matos" 
+EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos" 
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
 
 if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
     echo "[INFO] Copiando arquivos da extensão de $EXT_SRC_DIR para $EXT_DEST_DIR"
-    rm -rf "$EXT_DEST_DIR" # Remove instalação antiga
+    rm -rf "$EXT_DEST_DIR" 
     mkdir -p "$EXT_DEST_DIR"
     
-    # Copia o *conteúdo* do diretório de origem para o destino
     cp -rT "$EXT_SRC_DIR" "$EXT_DEST_DIR" 
-    chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
+    chmod -R go-w "${EXT_DEST_DIR}" 
     
     # --- 10c. Ajustando metadata.json (Lógica do ext.sh) ---
     echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
@@ -156,19 +155,25 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
       fi
     fi
     
-    # --- 10d. Registrar o Schema (CORRIGIDO) ---
-    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" # Caminho agora está correto
+    # --- 10d. Registrar o Schema (CORRIGIDO - Compilação Local e Global) ---
+    SCHEMA_XML_FILE="org.gnome.shell.extensions.hostnameIP.gschema.xml"
+    SCHEMA_SRC_FILE="$EXT_DEST_DIR/schemas/$SCHEMA_XML_FILE"
     SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
     
-    if [ -f "$SCHEMA_FILE" ]; then
-        echo "[INFO] Copiando schema ($SCHEMA_FILE) para $SCHEMA_DEST_DIR"
-        cp "$SCHEMA_FILE" "$SCHEMA_DEST_DIR"
-        
-        echo "[INFO] Recompilando schemas do sistema..."
+    if [ -f "$SCHEMA_SRC_FILE" ]; then
+        # 1. Copia para o diretório global e compila o BD global (Boa prática)
+        echo "[INFO] Copiando schema ($SCHEMA_SRC_FILE) para $SCHEMA_DEST_DIR (global)"
+        cp "$SCHEMA_SRC_FILE" "$SCHEMA_DEST_DIR"
+        echo "[INFO] Recompilando schemas globais do sistema..."
         glib-compile-schemas "$SCHEMA_DEST_DIR"
-        echo "[INFO] Schema da extensão registrado com sucesso."
+        
+        # 2. Compila o BD local (Obrigatório devido ao gettext-domain)
+        echo "[INFO] Compilando schema localmente em $EXT_DEST_DIR/schemas/ (CORREÇÃO)"
+        glib-compile-schemas "$EXT_DEST_DIR/schemas/"
+        
+        echo "[INFO] Schema da extensão registrado com sucesso (global e local)."
     else
-        echo "[AVISO] Não foi possível encontrar o arquivo de schema em $SCHEMA_FILE"
+        echo "[AVISO] Não foi possível encontrar o arquivo de schema em $SCHEMA_SRC_FILE"
     fi
     
 else
