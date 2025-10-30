@@ -102,13 +102,13 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'hostnameIP' (Lógica ATUALIZADA)
+# 10. Instala Extensão GNOME 'hostnameIP'
 # ------------------------------------------------------------
 echo "[INFO] Clonando e instalando extensão GNOME 'hostnameIP' system-wide..."
 
 # --- 10a. Clonar o repositório da extensão ---
 EXT_REPO_URL="https://github.com/ornan-matos/gnome-shell-extension-hostnameIP.git"
-EXT_REPO_DIR="/opt/hostnameIP-ext" # Novo diretório de clone
+EXT_REPO_DIR="/opt/hostnameIP-ext" 
 
 if [ -d "$EXT_REPO_DIR/.git" ]; then
     echo "[INFO] Repositório da extensão existente. Atualizando..."
@@ -118,9 +118,9 @@ else
     git clone "$EXT_REPO_URL" "$EXT_REPO_DIR"
 fi
 
-# --- 10b. Definir UUID e caminhos ---
-EXT_UUID="hostnameIP@ornan" # NOVO UUID (do metadata.json do novo repo)
-EXT_SRC_DIR="$EXT_REPO_DIR" # Fonte agora é a raiz do repo (não usa 'make')
+# --- 10b. Definir UUID e caminhos  ---
+EXT_UUID="hostnameIP_ornan-matos" #
+EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos"  
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
 
@@ -129,9 +129,9 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
     rm -rf "$EXT_DEST_DIR" # Remove instalação antiga
     mkdir -p "$EXT_DEST_DIR"
     
-    # Copia o *conteúdo* do diretório de origem para o destino
+    # Copia o *conteúdo* do diretório de origem (hostnameIP_ornan-matos) para o destino
     cp -rT "$EXT_SRC_DIR" "$EXT_DEST_DIR" 
-    chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
+    chmod -R go-w "${EXT_DEST_DIR}" 
     
     # --- 10c. Ajustando metadata.json (Lógica do ext.sh) ---
     echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
@@ -151,8 +151,8 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
       fi
     fi
     
-    # --- 10d. Registrar o Schema (ATUALIZADO) ---
-    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" # NOVO NOME DO SCHEMA
+    # --- 10d. Registrar o Schema 
+    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" 
     SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
     
     if [ -f "$SCHEMA_FILE" ]; then
@@ -168,10 +168,7 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
     
 else
     echo "[ERRO] Diretório fonte da extensão $EXT_SRC_DIR ou metadata.json não encontrado. Pulando."
-fi
-
-
-# ------------------------------------------------------------
+fi# ------------------------------------------------------------
 # 11. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
