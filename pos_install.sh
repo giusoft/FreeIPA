@@ -1,14 +1,14 @@
 #!/bin/bash
 # ============================================================
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
-# Autor: Ornan S. C. Matos
+# Autor: Ornan S. Matos
 #
-# Descrição Unificada (v10 - Extensão hostnameIP):
-#   - (v9) Fusão ext.sh (dconf GDM, metadata.json)
+# Descrição Unificada (v11 - Correção de typo):
 #   - (v10) Altera a fonte da extensão para o repositório
 #     'ornan-matos/gnome-shell-extension-hostnameIP'.
-#   - Clona GiuSoft (Zoiper, Logo, Wallpaper) e HostnameIP (Extensão).
-#   - Instala e configura Zoiper, RustDesk, Wallpaper, etc.
+#   - (v11) Corrige erro de digitação na variável 
+#     'WALLPAYPER_DEST_FILE' (agora 'WALLPAPER_DEST_FILE')
+#     na Seção 20 (dconf wallpaper).
 # ============================================================
 
 set -euo pipefail
@@ -571,7 +571,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPAYPER_DEST_FILE'
+picture-uri-dark='file://$WALLPAPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -719,10 +719,9 @@ HIDDEN_APPS=(
     "rygel.desktop"
     "snap-handle-link.desktop"
     "software-properties-drivers.desktop"
-
     "software-properties-gtk.desktop"
     "software-properties-livepatch.desktop"
-fs-c"update-manager.desktop"
+    "update-manager.desktop"
     "vim.desktop"
     "xdg-desktop-portal-gnome.desktop"
     "xdg-desktop-portal-gtk.desktop"
@@ -823,5 +822,5 @@ echo "2. Autentique o Tailscale:"
 echo "   sudo tailscale up"
 echo ""
 echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
-echo "   sudo usermod -aG powerusers nome_do_usuario"
+echo "   sudo usmod -aG powerusers nome_do_usuario"
 echo "------------------------------------------------------------"
