@@ -3,23 +3,19 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v8 - Logo GDM e correções):
-#   - Atualiza repositórios e instala pacotes essenciais
-#   - Configura repositórios (Google Chrome, ownCloud Client)
-#   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
-#   - Instala e ativa a extensão GNOME 'activate_gnome' (do repo GiuSoft)
-#     usando o método system-wide (glib-compile-schemas)
-#   - Configura RustDesk (lógica de ext.sh) com 3 arquivos em /etc/skel
-#   - Cria script de login (update-user-info.sh) para atualizar IP na extensão
-#     e no config do RustDesk
-#   - Cria autostart para o script de login
-#   - Aplica config do RustDesk a usuários existentes
-#   - Cria grupo 'powerusers' com permissões especiais via polkit
-#   - Configura e bloqueia o wallpaper corporativo via dconf
-#   - Cria cron job para atualizar o wallpaper mensalmente
-#   - Oculta aplicações desnecessárias do menu
-#   - Instala e habilita Tailscale e SSH
-
+# Descrição Unificada (v9 - Fusão ext.sh):
+#   - (ext.sh) Instala dependências (jq, libglib2.0-dev-bin)
+#   - Configura repositórios (Chrome, ownCloud)
+#   - Clona repositório GiuSoft
+#   - Instala Zoiper e RustDesk
+#   - (ext.sh) Instala extensão 'activate_gnome' system-wide,
+#     corrigindo o metadata.json para a versão atual do GNOME.
+#   - (ext.sh) Registra o schema da extensão com glib-compile-schemas
+#   - Configura RustDesk e script de login (update-user-info.sh)
+#   - Cria grupo 'powerusers' (polkit)
+#   - Configura e bloqueia wallpaper e ativação da extensão via dconf
+#   - Oculta aplicações
+#   - Instala Tailscale e SSH
 # ============================================================
 
 set -euo pipefail
@@ -30,11 +26,13 @@ echo "=== Iniciando pós-instalação GiuSoft ==="
 echo "Log será salvo em: $LOGFILE"
 
 # ------------------------------------------------------------
-# 1. Atualiza sistema e garante conectividade
+# 1. Atualiza sistema e garante conectividade (Dependências do ext.sh adicionadas)
 # ------------------------------------------------------------
-echo "[INFO] Atualizando pacotes base..."
+echo "[INFO] Atualizando pacotes base e instalando dependências..."
 apt update -y
-apt install -y wget curl gpg software-properties-common apt-transport-https ca-certificates git unzip gnome-shell-extensions
+# Adicionado 'jq' (para ext.sh) e 'libglib2.0-dev-bin' (para glib-compile-schemas)
+apt install -y wget curl gpg software-properties-common apt-transport-https \
+    ca-certificates git unzip gnome-shell-extensions jq libglib2.0-dev-bin
 
 # ------------------------------------------------------------
 # 2. Habilita repositórios adicionais
@@ -72,7 +70,7 @@ echo "[INFO] Atualizando lista de pacotes..."
 apt update -y
 
 # ------------------------------------------------------------
-# 7. Clona Repositório GiuSoft (Necessário para Zoiper, Wallpaper e Extensão)
+# 7. Clona Repositório GiuSoft (Necessário para Zoiper, Wallpaper, Extensão e Logo GDM)
 # ------------------------------------------------------------
 echo "[INFO] Clonando repositório GiuSoft..."
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
@@ -111,7 +109,7 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'activate_gnome' (Lógica do ext.sh)
+# 10. Instala Extensão GNOME 'activate_gnome' (Lógica do ext.sh integrada)
 # ------------------------------------------------------------
 echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide (do repo GiuSoft)..."
 EXT_SRC_ROOT="$GIT_REPO_DIR/activate_gnome"
@@ -129,8 +127,29 @@ if [ -d "$EXT_SRC_ROOT" ]; then
             echo "[INFO] Copiando arquivos da extensão para $EXT_DEST_SYSLOC"
             rm -rf "$EXT_DEST_DIR" # Remove instalação antiga se existir
             cp -r "$EXT_COMPILED_DIR" "$EXT_DEST_SYSLOC/"
+            chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
             
-            # --- 10b. Registrar o Schema (Método Corrigido do ext.sh) ---
+            # --- 10a. Ajustando metadata.json (Lógica do ext.sh) ---
+            echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
+            GNOME_VER="$(gnome-shell --version | awk '{print $3}' | cut -d. -f1)" || GNOME_VER="46" # Default para 24.04
+            META="${EXT_DEST_DIR}/metadata.json"
+            if [ -f "${META}" ]; then
+              # Garante que "shell-version" contenha a versão detectada (ex.: "46")
+              if command -v jq >/dev/null 2>&1; then
+                tmpmeta="$(mktemp)"
+                jq --arg v "${GNOME_VER}" '
+                  .["shell-version"] =
+                    ((.["shell-version"] // []) + [$v]) | unique
+                ' "${META}" > "${tmpmeta}" && mv "${tmpmeta}" "${META}"
+                echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via jq."
+              else
+                # Fallback: injeta a versão via sed simples se chave existir
+                sed -i "s/\"shell-version\"[[:space:]]*:[[:space:]]*\[\([^]]*\)\]/\"shell-version\": [\1, \"${GNOME_VER}\"]/" "${META}" || true
+                echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via sed (fallback)."
+              fi
+            fi
+            
+            # --- 10b. Registrar o Schema (Método Corrigido) ---
             SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.activate-gnome.gschema.xml"
             SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
             
@@ -405,6 +424,7 @@ if command -v gsettings &> /dev/null; then
     SCHEMA="org.gnome.shell.extensions.activate-gnome"
     
     # Tenta definir as chaves. Falha silenciosamente se a extensão não estiver carregada.
+    # O schema DEVE estar registrado via glib-compile-schemas (feito na Seção 10)
     gsettings set $SCHEMA "label-text" "$CURRENT_HOSTNAME" 2> /dev/null
     gsettings set $SCHEMA "label-text-2" "$CURRENT_IP" 2> /dev/null
     
@@ -567,6 +587,7 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 EOF
 
 # --- Perfil de Extensão (ATUALIZADO) ---
+# Esta é a lógica de ativação do ext.sh (Seção 5), mas simplificada
 cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
 [org/gnome/shell]
 # Ativa a extensão 'activate_gnome' para todos os usuários
@@ -736,30 +757,43 @@ for userhome in /home/*; do
 done
 
 # ------------------------------------------------------------
-# 23. Configura Logo do GDM (Tela de Login)
+# 23. Configura Logo do GDM (Tela de Login) - MÉTODO DCONF (ext.sh)
 # ------------------------------------------------------------
-echo "[INFO] Configurando logo personalizado do GDM (tela de login)..."
-GDM_LOGO_URL="https://i.ibb.co/kVDVMS0c/logo-full.png"
-GDM_LOGO_DEST_PATH="/usr/share/pixmaps/giusoft-gdm-logo.png"
+echo "[INFO] Configurando logo personalizado do GDM (tela de login) via dconf..."
 
-# O link que o GDM do Ubuntu usa
-GDM_LOGO_LINK="/usr/share/pixmaps/ubuntu-logo.png"
-# O nome do grupo de alternativas
-GDM_LOGO_NAME="gdm-logo"
+# Fonte: Arquivo 'logo-full.png' na raiz do repositório clonado
+GDM_LOGO_SRC_FILE="$GIT_REPO_DIR/logo-full.png"
+LOGO_DST_DIR="/usr/share/pixmaps"
+LOGO_DST="${LOGO_DST_DIR}/giusoft-gdm-logo.png"
 
-echo "[INFO] Baixando logo para $GDM_LOGO_DEST_PATH..."
-if wget -qO "$GDM_LOGO_DEST_PATH" "$GDM_LOGO_URL"; then
-    echo "[INFO] Logo baixado. Registrando alternativa..."
-    
-    # Instala a nova alternativa com prioridade 20 (default do ubuntu é 10)
-    update-alternatives --install "$GDM_LOGO_LINK" "$GDM_LOGO_NAME" "$GDM_LOGO_DEST_PATH" 20
-    
-    # Garante que a nossa alternativa está selecionada
-    update-alternatives --set "$GDM_LOGO_NAME" "$GDM_LOGO_DEST_PATH"
-    
-    echo "[INFO] Logo do GDM configurado."
+if [ -f "$GDM_LOGO_SRC_FILE" ]; then
+    echo "[INFO] Copiando logo de $GDM_LOGO_SRC_FILE para $LOGO_DST..."
+    install -d -m 0755 "${LOGO_DST_DIR}"
+    cp -f "$GDM_LOGO_SRC_FILE" "$LOGO_DST"
+    chmod 0644 "${LOGO_DST}"
+
+    echo "[INFO] Aplicando configuração do logo GDM via dconf..."
+    # Perfil/DB do GDM para definir o logo do greeter (suportado oficialmente)
+    install -d -m 0755 /etc/dconf/profile
+    cat >/etc/dconf/profile/gdm <<'EOF'
+user-db:user
+system-db:gdm
+file-db:/usr/share/gdm/greeter-dconf-defaults
+EOF
+
+    install -d -m 0755 /etc/dconf/db/gdm.d
+    # Usa a variável $LOGO_DST no EOF
+    cat >/etc/dconf/db/gdm.d/01-logo <<EOF
+[org/gnome/login-screen]
+logo='${LOGO_DST}'
+EOF
+
+    # Atualiza bases do dconf (vai aplicar no próximo ciclo do GDM)
+    dconf update
+    echo "[INFO] Logo do GDM configurado via dconf."
+
 else
-    echo "[AVISO] Falha ao baixar o logo do GDM de $GDM_LOGO_URL. Pulando..."
+    echo "[AVISO] Arquivo do logo GDM não encontrado em $GDM_LOGO_SRC_FILE. Pulando..."
 fi
 
 
@@ -794,4 +828,3 @@ echo ""
 echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
 echo "   sudo usermod -aG powerusers nome_do_usuario"
 echo "------------------------------------------------------------"
-
