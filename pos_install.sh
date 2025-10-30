@@ -206,7 +206,22 @@ apt install -y \
     htop \
     dconf-cli \
     gnome-shell-extension-prefs \
-    thunderbird
+    thunderbird \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    traceroute \
+    mtr \
+    dnsutils \
+    netcat-openbsd \
+    nmap \
+    tcpdump \
+    wireshark \
+    ethtool \
+    iftop \
+    bmon \
+    arp-scan \
+    speedtest-cli
 
 # ------------------------------------------------------------
 # 12. Configuração do /etc/skel (Lógica do ext.sh)
