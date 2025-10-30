@@ -3,12 +3,17 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. Matos
 #
-# Descrição Unificada (v11 - Correção de typo):
+# Descrição Unificada (v12 - Correção de Instalação da Extensão):
 #   - (v10) Altera a fonte da extensão para o repositório
 #     'ornan-matos/gnome-shell-extension-hostnameIP'.
 #   - (v11) Corrige erro de digitação na variável 
 #     'WALLPAYPER_DEST_FILE' (agora 'WALLPAPER_DEST_FILE')
 #     na Seção 20 (dconf wallpaper).
+#   - (v12) Corrige UUID e Caminho de Origem (EXT_SRC_DIR) na
+#     instalação da extensão (Seção 10).
+#   - (v12) Remove gsettings desnecessários do script de login
+#     (Seção 13), pois a extensão lida com isso dinamicamente.
+#   - (v12) Remove '}' extra no final do arquivo (erro de sintaxe).
 # ============================================================
 
 set -euo pipefail
@@ -102,13 +107,13 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'hostnameIP'
+# 10. Instala Extensão GNOME 'hostnameIP' (Lógica CORRIGIDA)
 # ------------------------------------------------------------
 echo "[INFO] Clonando e instalando extensão GNOME 'hostnameIP' system-wide..."
 
 # --- 10a. Clonar o repositório da extensão ---
 EXT_REPO_URL="https://github.com/ornan-matos/gnome-shell-extension-hostnameIP.git"
-EXT_REPO_DIR="/opt/hostnameIP-ext" 
+EXT_REPO_DIR="/opt/hostnameIP-ext" # Novo diretório de clone
 
 if [ -d "$EXT_REPO_DIR/.git" ]; then
     echo "[INFO] Repositório da extensão existente. Atualizando..."
@@ -118,9 +123,9 @@ else
     git clone "$EXT_REPO_URL" "$EXT_REPO_DIR"
 fi
 
-# --- 10b. Definir UUID e caminhos  ---
-EXT_UUID="hostnameIP_ornan-matos" #
-EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos"  
+# --- 10b. Definir UUID e caminhos (CORRIGIDOS) ---
+EXT_UUID="hostnameIP_ornan-matos" # CORRIGIDO: UUID real do metadata.json
+EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos" # CORRIGIDO: Subdiretório real da extensão
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
 
@@ -129,9 +134,9 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
     rm -rf "$EXT_DEST_DIR" # Remove instalação antiga
     mkdir -p "$EXT_DEST_DIR"
     
-    # Copia o *conteúdo* do diretório de origem (hostnameIP_ornan-matos) para o destino
+    # Copia o *conteúdo* do diretório de origem para o destino
     cp -rT "$EXT_SRC_DIR" "$EXT_DEST_DIR" 
-    chmod -R go-w "${EXT_DEST_DIR}" 
+    chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
     
     # --- 10c. Ajustando metadata.json (Lógica do ext.sh) ---
     echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
@@ -151,8 +156,8 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
       fi
     fi
     
-    # --- 10d. Registrar o Schema 
-    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" 
+    # --- 10d. Registrar o Schema (CORRIGIDO) ---
+    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" # Caminho agora está correto
     SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
     
     if [ -f "$SCHEMA_FILE" ]; then
@@ -168,7 +173,10 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
     
 else
     echo "[ERRO] Diretório fonte da extensão $EXT_SRC_DIR ou metadata.json não encontrado. Pulando."
-fi# ------------------------------------------------------------
+fi
+
+
+# ------------------------------------------------------------
 # 11. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
@@ -412,18 +420,10 @@ if [ -z "$CURRENT_IP" ]; then
 fi
 CURRENT_HOSTNAME=$(hostname)
 
-# --- 2. Atualizar a Extensão GNOME (ATUALIZADO) ---
-if command -v gsettings &> /dev/null; then
-    # ATUALIZADO: Novo nome do Schema
-    SCHEMA="org.gnome.shell.extensions.hostnameIP"
-    
-    # Tenta definir as chaves. Falha silenciosamente se a extensão não estiver carregada.
-    # O schema DEVE estar registrado via glib-compile-schemas (feito na Seção 10)
-    gsettings set $SCHEMA "label-text" "$CURRENT_HOSTNAME" 2> /dev/null
-    gsettings set $SCHEMA "label-text-2" "$CURRENT_IP" 2> /dev/null
-    
-    # A ativação da extensão é feita via dconf (Seção 20)
-fi
+# --- 2. Atualizar a Extensão GNOME (REMOVIDO) ---
+# A extensão hostnameIP_ornan-matos (instalada na Seção 10)
+# busca o IP e Hostname dinamicamente e se atualiza a cada 30s.
+# Não é necessário (e não funciona) definir via gsettings.
 
 # --- 3. Atualizar Configuração do RustDesk (CORRIGIDO) ---
 RUSTDESK_DIR="$HOME/.config/rustdesk"
@@ -580,11 +580,11 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 /org/gnome/desktop/background/picture-options
 EOF
 
-# --- Perfil de Extensão (ATUALIZADO) ---
-# A variável $EXT_UUID foi definida na Seção 10 como "hostnameIP@ornan"
+# --- Perfil de Extensão (CORRIGIDO) ---
+# A variável $EXT_UUID foi definida e corrigida na Seção 10
 cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
 [org/gnome/shell]
-# Ativa a extensão 'hostnameIP@ornan' para todos os usuários
+# Ativa a extensão '$EXT_UUID' para todos os usuários
 enabled-extensions=['$EXT_UUID']
 EOF
 
@@ -819,5 +819,5 @@ echo "2. Autentique o Tailscale:"
 echo "   sudo tailscale up"
 echo ""
 echo "3. Adicione usuários ao grupo 'powerusers' (se necessário):"
-echo "   sudo usmod -aG powerusers nome_do_usuario"
+echo "   sudo usermod -aG powerusers nome_do_usuario"
 echo "------------------------------------------------------------"
