@@ -3,7 +3,7 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v5 - Incorporando ext.sh):
+# Descrição Unificada (v6 - Correção RustDesk/Extensão):
 #   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
@@ -19,6 +19,10 @@
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
 #   - Instala e habilita Tailscale e SSH
+#
+#   - v6: Corrige lógica do RustDesk. Consolida opções no
+#         RustDesk_local.toml e remove template.
+#         Script de login agora atualiza o toml local (sed -i).
 # ============================================================
 
 set -euo pipefail
@@ -124,7 +128,7 @@ if [ -d "$EXT_SRC_ROOT" ]; then
     if make -C "$EXT_SRC_ROOT"; then
         echo "[INFO] Make concluído."
         
-        if [ -d "$EXT_COMPILED_DIR" ]; then
+        if [ -d "$EXT_COMPILED_DIR" ] && [ -f "$EXT_COMPILED_DIR/metadata.json" ]; then
             echo "[INFO] Copiando arquivos da extensão para $EXT_DEST_SYSLOC"
             rm -rf "$EXT_DEST_DIR" # Remove instalação antiga se existir
             cp -r "$EXT_COMPILED_DIR" "$EXT_DEST_SYSLOC/"
@@ -145,7 +149,7 @@ if [ -d "$EXT_SRC_ROOT" ]; then
             fi
             
         else
-            echo "[ERRO] Diretório compilado $EXT_COMPILED_DIR não encontrado após o 'make'."
+            echo "[ERRO] Diretório compilado $EXT_COMPILED_DIR ou metadata.json não encontrado após o 'make'."
         fi
     else
         echo "[ERRO] Falha ao executar 'make' em $EXT_SRC_ROOT"
@@ -159,7 +163,6 @@ fi
 # 11. Instala pacotes principais (ownCloud, Chrome e outros)
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes essenciais..."
-# (Seção 12 do script original, movida para 11)
 apt install -y \
     google-chrome-stable \
     owncloud-client \
@@ -191,6 +194,7 @@ apt install -y \
     libnss-sss \
     libpam-sss \
     sssd-tools \
+    net-tools \
     netcat-openbsd \
     iputils-ping \
     fio \
@@ -216,17 +220,17 @@ apt install -y \
     netcat-openbsd \
     nmap \
     tcpdump \
-    wireshark \
     ethtool \
     iftop \
     bmon \
     arp-scan \
     speedtest-cli
 
+
 # ------------------------------------------------------------
-# 12. Configuração do /etc/skel (Lógica do ext.sh)
+# 12. Configuração do /etc/skel (Lógica do ext.sh - CORRIGIDA)
 # ------------------------------------------------------------
-echo "[INFO] Configurando /etc/skel para novos usuários (lógica ext.sh)..."
+echo "[INFO] Configurando /etc/skel para novos usuários (lógica ext.sh corrigida)..."
 SKEL_RUSTDESK_DIR="/etc/skel/.config/rustdesk"
 mkdir -p "$SKEL_RUSTDESK_DIR"
 
@@ -343,7 +347,7 @@ key_confirmed = true
 rs-ny = true
 EOF
 
-# Criando RustDesk_local.toml
+# Criando RustDesk_local.toml (COM OPÇÕES INTEGRADAS)
 cat <<'EOF' > "$SKEL_RUSTDESK_DIR/RustDesk_local.toml"
 remote_id = ''
 kb_layout_type = ''
@@ -356,31 +360,27 @@ size = [
 fav = []
 
 [options]
+rendezvous_server = 'rs-ny.rustdesk.com:21116'
+nat_type = 1
+serial = 0
+unlock_pin = ''
+trusted_devices = ''
+direct-server = 'Y'
+approve-mode = 'click'
+av1-test = 'Y'
+local-ip-addr = '__CURRENT_IP__'
 
 [ui_flutter]
 peer-sorting = 'Remote ID'
 wm_Main = '{"width":800.0,"height":600.0,"offsetWidth":0.0,"offsetHeight":0.0,"isMaximized":false,"isFullscreen":false}'
 EOF
 
-# Criando RustDesk2.toml.template (Note o .template)
-cat <<'EOF' > "$SKEL_RUSTDESK_DIR/RustDesk2.toml.template"
-rendezvous_server = 'rs-ny.rustdesk.com:21116'
-nat_type = 1
-serial = 0
-unlock_pin = ''
-trusted_devices = ''
-
-[options]
-direct-server = 'Y'
-approve-mode = 'click'
-av1-test = 'Y'
-local-ip-addr = '__CURRENT_IP__'
-EOF
+# REMOVIDO: RustDesk2.toml.template não é mais necessário
 
 echo "[INFO] Arquivos do RustDesk criados em /etc/skel/.config/rustdesk/"
 
 # ------------------------------------------------------------
-# 13. Criação do Script de Login (Lógica do ext.sh)
+# 13. Criação do Script de Login (Lógica do ext.sh - CORRIGIDA)
 # ------------------------------------------------------------
 echo "[INFO] Criando script de atualização /usr/local/bin/update-user-info.sh..."
 cat <<'EOF' > "/usr/local/bin/update-user-info.sh"
@@ -401,30 +401,31 @@ CURRENT_IP=$(hostname -I | awk '{for(i=1;i<=NF;i++) if ($i !~ /^127/ && $i !~ /^
 if [ -z "$CURRENT_IP" ]; then
     CURRENT_IP=$(hostname -I | awk '{print $1}') # Pega o primeiro IP que encontrar
 fi
+if [ -z "$CURRENT_IP" ]; then
+    CURRENT_IP="N/A" # Caso extremo
+fi
 CURRENT_HOSTNAME=$(hostname)
 
 # --- 2. Atualizar a Extensão GNOME (Corrigido) ---
 if command -v gsettings &> /dev/null; then
     SCHEMA="org.gnome.shell.extensions.activate-gnome"
     
-    # CORREÇÃO: Linha 1 para Hostname
-    gsettings set $SCHEMA "label-text" "$CURRENT_HOSTNAME"
+    # Tenta definir as chaves. Falha silenciosamente se a extensão não estiver carregada.
+    gsettings set $SCHEMA "label-text" "$CURRENT_HOSTNAME" 2> /dev/null
+    gsettings set $SCHEMA "label-text-2" "$CURRENT_IP" 2> /dev/null
     
-    # CORREÇÃO: Linha 2 para IP
-    gsettings set $SCHEMA "label-text-2" "$CURRENT_IP"
-    
-    # A ativação da extensão será feita via dconf (Seção 23)
+    # A ativação da extensão é feita via dconf (Seção 20)
 fi
 
-# --- 3. Atualizar Configuração do RustDesk ---
+# --- 3. Atualizar Configuração do RustDesk (CORRIGIDO) ---
 RUSTDESK_DIR="$HOME/.config/rustdesk"
-TEMPLATE_FILE="$RUSTDESK_DIR/RustDesk2.toml.template"
-CONFIG_FILE="$RUSTDESK_DIR/RustDesk2.toml"
+CONFIG_FILE="$RUSTDESK_DIR/RustDesk_local.toml"
 
-# Verifica se o arquivo de template existe
-if [ -f "$TEMPLATE_FILE" ]; then
-    # Substitui o placeholder __CURRENT_IP__ pelo IP real
-    sed "s|__CURRENT_IP__|$CURRENT_IP|" "$TEMPLATE_FILE" > "$CONFIG_FILE"
+# Verifica se o arquivo de configuração local existe
+if [ -f "$CONFIG_FILE" ]; then
+    # Substitui o placeholder __CURRENT_IP__ pelo IP real, IN-PLACE
+    # Isso garante que as opções sejam preservadas e apenas o IP seja atualizado.
+    sed -i "s|local-ip-addr = '.*'|local-ip-addr = '$CURRENT_IP'|" "$CONFIG_FILE"
 fi
 EOF
 
@@ -447,7 +448,7 @@ X-GNOME-Autostart-enabled=true
 EOF
 
 # ------------------------------------------------------------
-# 15. Aplicar aos Usuários EXISTENTES (Lógica do ext.sh)
+# 15. Aplicar aos Usuários EXISTENTES (Lógica do ext.sh - CORRIGIDA)
 # ------------------------------------------------------------
 echo "[INFO] Aplicando configurações do RustDesk para usuários existentes em /home/..."
 for D in /home/*; do
@@ -459,6 +460,7 @@ for D in /home/*; do
     mkdir -p "$USER_RUSTDESK_DIR"
     
     # Copia os arquivos do skel, -n (noclobber) não sobrescreve se já existirem
+    # Isso irá copiar o novo RustDesk.toml e o RustDesk_local.toml (com opções)
     cp -n /etc/skel/.config/rustdesk/* "$USER_RUSTDESK_DIR/"
     
     # Garante que o usuário seja o dono dos seus arquivos de configuração
@@ -550,7 +552,7 @@ echo "[INFO] Configurando e bloqueando o papel de parede e extensões padrão...
 
 # Cria os diretórios para as regras e travas
 DCONF_DB_DIR="/etc/dconf/db/local.d"
-DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks" # Corrigido: /etc/dconf/db/local.d/locks
+DCONF_LOCK_DIR="/etc/dconf/db/local.d/locks"
 mkdir -p "$DCONF_DB_DIR"
 mkdir -p "$DCONF_LOCK_DIR"
 
@@ -558,7 +560,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPAPER_DEST_FILE'
+picture-uri-dark='file://$WALLPOSTER_DEST_FILE'
 picture-options='zoom'
 EOF
 
