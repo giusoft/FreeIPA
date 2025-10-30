@@ -3,19 +3,12 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v9 - Fusão ext.sh):
-#   - (ext.sh) Instala dependências (jq, libglib2.0-dev-bin)
-#   - Configura repositórios (Chrome, ownCloud)
-#   - Clona repositório GiuSoft
-#   - Instala Zoiper e RustDesk
-#   - (ext.sh) Instala extensão 'activate_gnome' system-wide,
-#     corrigindo o metadata.json para a versão atual do GNOME.
-#   - (ext.sh) Registra o schema da extensão com glib-compile-schemas
-#   - Configura RustDesk e script de login (update-user-info.sh)
-#   - Cria grupo 'powerusers' (polkit)
-#   - Configura e bloqueia wallpaper e ativação da extensão via dconf
-#   - Oculta aplicações
-#   - Instala Tailscale e SSH
+# Descrição Unificada (v10 - Extensão hostnameIP):
+#   - (v9) Fusão ext.sh (dconf GDM, metadata.json)
+#   - (v10) Altera a fonte da extensão para o repositório
+#     'ornan-matos/gnome-shell-extension-hostnameIP'.
+#   - Clona GiuSoft (Zoiper, Logo, Wallpaper) e HostnameIP (Extensão).
+#   - Instala e configura Zoiper, RustDesk, Wallpaper, etc.
 # ============================================================
 
 set -euo pipefail
@@ -70,18 +63,18 @@ echo "[INFO] Atualizando lista de pacotes..."
 apt update -y
 
 # ------------------------------------------------------------
-# 7. Clona Repositório GiuSoft (Necessário para Zoiper, Wallpaper, Extensão e Logo GDM)
+# 7. Clona Repositório GiuSoft (Necessário para Zoiper, Wallpaper e Logo GDM)
 # ------------------------------------------------------------
-echo "[INFO] Clonando repositório GiuSoft..."
+echo "[INFO] Clonando repositório GiuSoft (Zoiper, Wallpaper, Logo)..."
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
 mkdir -p /opt/giusoft
 
 # Clona o repositório se não existir, ou atualiza se já existir
 if [ -d "$GIT_REPO_DIR/.git" ]; then
-    echo "[INFO] Repositório existente. Atualizando..."
+    echo "[INFO] Repositório GiuSoft existente. Atualizando..."
     (cd "$GIT_REPO_DIR" && git pull)
 else
-    echo "[INFO] Repositório não encontrado. Clonando..."
+    echo "[INFO] Repositório GiuSoft não encontrado. Clonando..."
     git clone https://github.com/giusoft/FreeIPA.git "$GIT_REPO_DIR"
 fi
 
@@ -109,69 +102,72 @@ apt install -y /tmp/rustdesk.deb
 rm -f /tmp/rustdesk.deb
 
 # ------------------------------------------------------------
-# 10. Instala Extensão GNOME 'activate_gnome' (Lógica do ext.sh integrada)
+# 10. Instala Extensão GNOME 'hostnameIP' (Lógica ATUALIZADA)
 # ------------------------------------------------------------
-echo "[INFO] Instalando extensão GNOME 'activate_gnome' system-wide (do repo GiuSoft)..."
-EXT_SRC_ROOT="$GIT_REPO_DIR/activate_gnome"
-EXT_UUID="activate_gnome@isjerryxiao"
-EXT_COMPILED_DIR="$EXT_SRC_ROOT/$EXT_UUID"
+echo "[INFO] Clonando e instalando extensão GNOME 'hostnameIP' system-wide..."
+
+# --- 10a. Clonar o repositório da extensão ---
+EXT_REPO_URL="https://github.com/ornan-matos/gnome-shell-extension-hostnameIP.git"
+EXT_REPO_DIR="/opt/hostnameIP-ext" # Novo diretório de clone
+
+if [ -d "$EXT_REPO_DIR/.git" ]; then
+    echo "[INFO] Repositório da extensão existente. Atualizando..."
+    (cd "$EXT_REPO_DIR" && git pull) || echo "[AVISO] Falha ao atualizar repo da extensão."
+else
+    echo "[INFO] Repositório da extensão não encontrado. Clonando..."
+    git clone "$EXT_REPO_URL" "$EXT_REPO_DIR"
+fi
+
+# --- 10b. Definir UUID e caminhos ---
+EXT_UUID="hostnameIP@ornan" # NOVO UUID (do metadata.json do novo repo)
+EXT_SRC_DIR="$EXT_REPO_DIR" # Fonte agora é a raiz do repo (não usa 'make')
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
 
-if [ -d "$EXT_SRC_ROOT" ]; then
-    echo "[INFO] Compilando a extensão (make)..."
-    if make -C "$EXT_SRC_ROOT"; then
-        echo "[INFO] Make concluído."
-        
-        if [ -d "$EXT_COMPILED_DIR" ] && [ -f "$EXT_COMPILED_DIR/metadata.json" ]; then
-            echo "[INFO] Copiando arquivos da extensão para $EXT_DEST_SYSLOC"
-            rm -rf "$EXT_DEST_DIR" # Remove instalação antiga se existir
-            cp -r "$EXT_COMPILED_DIR" "$EXT_DEST_SYSLOC/"
-            chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
-            
-            # --- 10a. Ajustando metadata.json (Lógica do ext.sh) ---
-            echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
-            GNOME_VER="$(gnome-shell --version | awk '{print $3}' | cut -d. -f1)" || GNOME_VER="46" # Default para 24.04
-            META="${EXT_DEST_DIR}/metadata.json"
-            if [ -f "${META}" ]; then
-              # Garante que "shell-version" contenha a versão detectada (ex.: "46")
-              if command -v jq >/dev/null 2>&1; then
-                tmpmeta="$(mktemp)"
-                jq --arg v "${GNOME_VER}" '
-                  .["shell-version"] =
-                    ((.["shell-version"] // []) + [$v]) | unique
-                ' "${META}" > "${tmpmeta}" && mv "${tmpmeta}" "${META}"
-                echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via jq."
-              else
-                # Fallback: injeta a versão via sed simples se chave existir
-                sed -i "s/\"shell-version\"[[:space:]]*:[[:space:]]*\[\([^]]*\)\]/\"shell-version\": [\1, \"${GNOME_VER}\"]/" "${META}" || true
-                echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via sed (fallback)."
-              fi
-            fi
-            
-            # --- 10b. Registrar o Schema (Método Corrigido) ---
-            SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.activate-gnome.gschema.xml"
-            SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
-            
-            if [ -f "$SCHEMA_FILE" ]; then
-                echo "[INFO] Copiando schema para $SCHEMA_DEST_DIR"
-                cp "$SCHEMA_FILE" "$SCHEMA_DEST_DIR"
-                
-                echo "[INFO] Recompilando schemas do sistema..."
-                glib-compile-schemas "$SCHEMA_DEST_DIR"
-                echo "[INFO] Schema da extensão registrado com sucesso."
-            else
-                echo "[AVISO] Não foi possível encontrar o arquivo de schema em $SCHEMA_FILE"
-            fi
-            
-        else
-            echo "[ERRO] Diretório compilado $EXT_COMPILED_DIR ou metadata.json não encontrado após o 'make'."
-        fi
-    else
-        echo "[ERRO] Falha ao executar 'make' em $EXT_SRC_ROOT"
+if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
+    echo "[INFO] Copiando arquivos da extensão de $EXT_SRC_DIR para $EXT_DEST_DIR"
+    rm -rf "$EXT_DEST_DIR" # Remove instalação antiga
+    mkdir -p "$EXT_DEST_DIR"
+    
+    # Copia o *conteúdo* do diretório de origem para o destino
+    cp -rT "$EXT_SRC_DIR" "$EXT_DEST_DIR" 
+    chmod -R go-w "${EXT_DEST_DIR}" # Permissões (de ext.sh)
+    
+    # --- 10c. Ajustando metadata.json (Lógica do ext.sh) ---
+    echo "[INFO] Ajustando metadata.json para a versão do GNOME atual..."
+    GNOME_VER="$(gnome-shell --version | awk '{print $3}' | cut -d. -f1)" || GNOME_VER="46"
+    META="${EXT_DEST_DIR}/metadata.json"
+    if [ -f "${META}" ]; then
+      if command -v jq >/dev/null 2>&1; then
+        tmpmeta="$(mktemp)"
+        jq --arg v "${GNOME_VER}" '
+          .["shell-version"] =
+            ((.["shell-version"] // []) + [$v]) | unique
+        ' "${META}" > "${tmpmeta}" && mv "${tmpmeta}" "${META}"
+        echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via jq."
+      else
+        sed -i "s/\"shell-version\"[[:space:]]*:[[:space:]]*\[\([^]]*\)\]/\"shell-version\": [\1, \"${GNOME_VER}\"]/" "${META}" || true
+        echo "[INFO] metadata.json atualizado com a versão $GNOME_VER via sed (fallback)."
+      fi
     fi
+    
+    # --- 10d. Registrar o Schema (ATUALIZADO) ---
+    SCHEMA_FILE="$EXT_DEST_DIR/schemas/org.gnome.shell.extensions.hostnameIP.gschema.xml" # NOVO NOME DO SCHEMA
+    SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
+    
+    if [ -f "$SCHEMA_FILE" ]; then
+        echo "[INFO] Copiando schema ($SCHEMA_FILE) para $SCHEMA_DEST_DIR"
+        cp "$SCHEMA_FILE" "$SCHEMA_DEST_DIR"
+        
+        echo "[INFO] Recompilando schemas do sistema..."
+        glib-compile-schemas "$SCHEMA_DEST_DIR"
+        echo "[INFO] Schema da extensão registrado com sucesso."
+    else
+        echo "[AVISO] Não foi possível encontrar o arquivo de schema em $SCHEMA_FILE"
+    fi
+    
 else
-    echo "[ERRO] Diretório fonte da extensão $EXT_SRC_ROOT não encontrado. Pulando."
+    echo "[ERRO] Diretório fonte da extensão $EXT_SRC_DIR ou metadata.json não encontrado. Pulando."
 fi
 
 
@@ -393,7 +389,7 @@ EOF
 echo "[INFO] Arquivos do RustDesk criados em /etc/skel/.config/rustdesk/"
 
 # ------------------------------------------------------------
-# 13. Criação do Script de Login (Lógica do ext.sh - CORRIGIDA)
+# 13. Criação do Script de Login (ATUALIZADO)
 # ------------------------------------------------------------
 echo "[INFO] Criando script de atualização /usr/local/bin/update-user-info.sh..."
 cat <<'EOF' > "/usr/local/bin/update-user-info.sh"
@@ -419,9 +415,10 @@ if [ -z "$CURRENT_IP" ]; then
 fi
 CURRENT_HOSTNAME=$(hostname)
 
-# --- 2. Atualizar a Extensão GNOME (Corrigido) ---
+# --- 2. Atualizar a Extensão GNOME (ATUALIZADO) ---
 if command -v gsettings &> /dev/null; then
-    SCHEMA="org.gnome.shell.extensions.activate-gnome"
+    # ATUALIZADO: Novo nome do Schema
+    SCHEMA="org.gnome.shell.extensions.hostnameIP"
     
     # Tenta definir as chaves. Falha silenciosamente se a extensão não estiver carregada.
     # O schema DEVE estar registrado via glib-compile-schemas (feito na Seção 10)
@@ -574,7 +571,7 @@ mkdir -p "$DCONF_LOCK_DIR"
 cat > "$DCONF_DB_DIR/01-giusoft-wallpaper" <<EOF
 [org/gnome/desktop/background]
 picture-uri='file://$WALLPAPER_DEST_FILE'
-picture-uri-dark='file://$WALLPAPER_DEST_FILE'
+picture-uri-dark='file://$WALLPAYPER_DEST_FILE'
 picture-options='zoom'
 EOF
 
@@ -587,10 +584,10 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 EOF
 
 # --- Perfil de Extensão (ATUALIZADO) ---
-# Esta é a lógica de ativação do ext.sh (Seção 5), mas simplificada
+# A variável $EXT_UUID foi definida na Seção 10 como "hostnameIP@ornan"
 cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
 [org/gnome/shell]
-# Ativa a extensão 'activate_gnome' para todos os usuários
+# Ativa a extensão 'hostnameIP@ornan' para todos os usuários
 enabled-extensions=['$EXT_UUID']
 EOF
 
@@ -725,7 +722,7 @@ HIDDEN_APPS=(
 
     "software-properties-gtk.desktop"
     "software-properties-livepatch.desktop"
-    "update-manager.desktop"
+fs-c"update-manager.desktop"
     "vim.desktop"
     "xdg-desktop-portal-gnome.desktop"
     "xdg-desktop-portal-gtk.desktop"
@@ -761,7 +758,7 @@ done
 # ------------------------------------------------------------
 echo "[INFO] Configurando logo personalizado do GDM (tela de login) via dconf..."
 
-# Fonte: Arquivo 'logo-full.png' na raiz do repositório clonado
+# Fonte: Arquivo 'logo-full.png' na raiz do repositório GiuSoft
 GDM_LOGO_SRC_FILE="$GIT_REPO_DIR/logo-full.png"
 LOGO_DST_DIR="/usr/share/pixmaps"
 LOGO_DST="${LOGO_DST_DIR}/giusoft-gdm-logo.png"
