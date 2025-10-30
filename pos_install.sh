@@ -3,7 +3,7 @@
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. C. Matos
 #
-# Descrição Unificada (v7 - Correção de typo):
+# Descrição Unificada (v8 - Logo GDM e correções):
 #   - Atualiza repositórios e instala pacotes essenciais
 #   - Configura repositórios (Google Chrome, ownCloud Client)
 #   - Clona repositório GiuSoft e instala pacotes (Zoiper, RustDesk)
@@ -19,6 +19,7 @@
 #   - Cria cron job para atualizar o wallpaper mensalmente
 #   - Oculta aplicações desnecessárias do menu
 #   - Instala e habilita Tailscale e SSH
+
 # ============================================================
 
 set -euo pipefail
@@ -573,7 +574,7 @@ enabled-extensions=['$EXT_UUID']
 EOF
 
 # --- Trava da Extensão ---
-cat > "$DCODE_LOCK_DIR/02-giusoft-extensions" <<EOF
+cat > "$DCONF_LOCK_DIR/02-giusoft-extensions" <<EOF
 # Impede que usuários modifiquem a lista de extensões ativadas
 /org/gnome/shell/enabled-extensions
 EOF
@@ -598,7 +599,7 @@ dconf update
 echo "[INFO] Copiando e ajustando permissões do arquivo de wallpaper..."
 mkdir -p "$(dirname "$WALLPAPER_DEST_FILE")"
 if [ -f "$WALLPAPER_SRC_FILE" ]; then
-    cp -f "$WALLPAYER_SRC_FILE" "$WALLPAPER_DEST_FILE"
+    cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DEST_FILE"
     chmod 644 "$WALLPAPER_DEST_FILE"
 else
     echo "[WARN] Arquivo fonte $WALLPAPER_SRC_FILE não encontrado! O wallpaper não será aplicado."
@@ -700,6 +701,7 @@ HIDDEN_APPS=(
     "rygel.desktop"
     "snap-handle-link.desktop"
     "software-properties-drivers.desktop"
+
     "software-properties-gtk.desktop"
     "software-properties-livepatch.desktop"
     "update-manager.desktop"
@@ -733,15 +735,42 @@ for userhome in /home/*; do
     fi
 done
 
+# ------------------------------------------------------------
+# 23. Configura Logo do GDM (Tela de Login)
+# ------------------------------------------------------------
+echo "[INFO] Configurando logo personalizado do GDM (tela de login)..."
+GDM_LOGO_URL="https://i.ibb.co/kVDVMS0c/logo-full.png"
+GDM_LOGO_DEST_PATH="/usr/share/pixmaps/giusoft-gdm-logo.png"
+
+# O link que o GDM do Ubuntu usa
+GDM_LOGO_LINK="/usr/share/pixmaps/ubuntu-logo.png"
+# O nome do grupo de alternativas
+GDM_LOGO_NAME="gdm-logo"
+
+echo "[INFO] Baixando logo para $GDM_LOGO_DEST_PATH..."
+if wget -qO "$GDM_LOGO_DEST_PATH" "$GDM_LOGO_URL"; then
+    echo "[INFO] Logo baixado. Registrando alternativa..."
+    
+    # Instala a nova alternativa com prioridade 20 (default do ubuntu é 10)
+    update-alternatives --install "$GDM_LOGO_LINK" "$GDM_LOGO_NAME" "$GDM_LOGO_DEST_PATH" 20
+    
+    # Garante que a nossa alternativa está selecionada
+    update-alternatives --set "$GDM_LOGO_NAME" "$GDM_LOGO_DEST_PATH"
+    
+    echo "[INFO] Logo do GDM configurado."
+else
+    echo "[AVISO] Falha ao baixar o logo do GDM de $GDM_LOGO_URL. Pulando..."
+fi
+
 
 # ------------------------------------------------------------
-# 23. Finalização
+# 24. Finalização
 # ------------------------------------------------------------
 echo ""
 echo "============================================================"
 echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
 echo "Log salvo em: $LOGFILE"
-echo "IMPORTANTE: REINICIE O COMPUTADOR para que todas as alterações (dconf, autostart, skel) tenham efeito."
+echo "IMPORTANTE: REINICIE O COMPUTADOR para que todas as alterações (dconf, autostart, skel, logo GDM) tenham efeito."
 echo "============================================================"
 echo ""
 echo "Próximos passos manuais recomendados:"
