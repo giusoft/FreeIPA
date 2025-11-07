@@ -2,18 +2,6 @@
 # ============================================================
 # Script de Pós-instalação Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan S. Matos
-#
-# Descrição Unificada (v12 - Correção de Instalação da Extensão):
-#   - (v10) Altera a fonte da extensão para o repositório
-#     'ornan-matos/gnome-shell-extension-hostnameIP'.
-#   - (v11) Corrige erro de digitação na variável 
-#     'WALLPAYPER_DEST_FILE' (agora 'WALLPAPER_DEST_FILE')
-#     na Seção 20 (dconf wallpaper).
-#   - (v12) Corrige UUID e Caminho de Origem (EXT_SRC_DIR) na
-#     instalação da extensão (Seção 10).
-#   - (v12) Remove gsettings desnecessários do script de login
-#     (Seção 13), pois a extensão lida com isso dinamicamente.
-#   - (v12) Remove '}' extra no final do arquivo (erro de sintaxe).
 # ============================================================
 
 set -euo pipefail
@@ -155,19 +143,19 @@ if [ -d "$EXT_SRC_DIR" ] && [ -f "$EXT_SRC_DIR/metadata.json" ]; then
       fi
     fi
     
-    # --- 10d. Registrar o Schema (CORRIGIDO - Compilação Local e Global) ---
+    # --- 10d. Registrar o Schema ---
     SCHEMA_XML_FILE="org.gnome.shell.extensions.hostnameIP.gschema.xml"
     SCHEMA_SRC_FILE="$EXT_DEST_DIR/schemas/$SCHEMA_XML_FILE"
     SCHEMA_DEST_DIR="/usr/share/glib-2.0/schemas/"
     
     if [ -f "$SCHEMA_SRC_FILE" ]; then
-        # 1. Copia para o diretório global e compila o BD global (Boa prática)
+        # 1. Copia para o diretório global e compila o BD global 
         echo "[INFO] Copiando schema ($SCHEMA_SRC_FILE) para $SCHEMA_DEST_DIR (global)"
         cp "$SCHEMA_SRC_FILE" "$SCHEMA_DEST_DIR"
         echo "[INFO] Recompilando schemas globais do sistema..."
         glib-compile-schemas "$SCHEMA_DEST_DIR"
         
-        # 2. Compila o BD local (Obrigatório devido ao gettext-domain)
+        # 2. Compila o BD local (Obrigatório)
         echo "[INFO] Compilando schema localmente em $EXT_DEST_DIR/schemas/ (CORREÇÃO)"
         glib-compile-schemas "$EXT_DEST_DIR/schemas/"
         
@@ -250,7 +238,7 @@ apt install -y \
     inxi
 
 # ------------------------------------------------------------
-# 12. Configuração do /etc/skel (Lógica do ext.sh - CORRIGIDA)
+# 12. Configuração do /etc/skel
 # ------------------------------------------------------------
 echo "[INFO] Configurando /etc/skel para novos usuários (lógica ext.sh corrigida)..."
 SKEL_RUSTDESK_DIR="/etc/skel/.config/rustdesk"
@@ -400,7 +388,7 @@ EOF
 echo "[INFO] Arquivos do RustDesk criados em /etc/skel/.config/rustdesk/"
 
 # ------------------------------------------------------------
-# 13. Criação do Script de Login (ATUALIZADO)
+# 13. Criação do Script de Login
 # ------------------------------------------------------------
 echo "[INFO] Criando script de atualização /usr/local/bin/update-user-info.sh..."
 cat <<'EOF' > "/usr/local/bin/update-user-info.sh"
@@ -426,12 +414,12 @@ if [ -z "$CURRENT_IP" ]; then
 fi
 CURRENT_HOSTNAME=$(hostname)
 
-# --- 2. Atualizar a Extensão GNOME (REMOVIDO) ---
+# --- 2. Atualizar a Extensão GNOME  ---
 # A extensão hostnameIP_ornan-matos (instalada na Seção 10)
 # busca o IP e Hostname dinamicamente e se atualiza a cada 30s.
 # Não é necessário (e não funciona) definir via gsettings.
 
-# --- 3. Atualizar Configuração do RustDesk (CORRIGIDO) ---
+# --- 3. Atualizar Configuração do RustDesk  ---
 RUSTDESK_DIR="$HOME/.config/rustdesk"
 CONFIG_FILE="$RUSTDESK_DIR/RustDesk_local.toml"
 
@@ -447,7 +435,7 @@ EOF
 chmod +x /usr/local/bin/update-user-info.sh
 
 # ------------------------------------------------------------
-# 14. Criação do Arquivo Autostart (Lógica do ext.sh)
+# 14. Criação do Arquivo Autostart 
 # ------------------------------------------------------------
 echo "[INFO] Criando gatilho de login em /etc/xdg/autostart/..."
 cat <<'EOF' > "/etc/xdg/autostart/update-user-info.desktop"
@@ -462,7 +450,7 @@ X-GNOME-Autostart-enabled=true
 EOF
 
 # ------------------------------------------------------------
-# 15. Aplicar aos Usuários EXISTENTES (Lógica do ext.sh - CORRIGIDA)
+# 15. Aplicar aos Usuários EXISTENTES 
 # ------------------------------------------------------------
 echo "[INFO] Aplicando configurações do RustDesk para usuários existentes em /home/..."
 for D in /home/*; do
@@ -586,7 +574,7 @@ cat > "$DCONF_LOCK_DIR/01-giusoft-wallpaper" <<EOF
 /org/gnome/desktop/background/picture-options
 EOF
 
-# --- Perfil de Extensão (CORRIGIDO) ---
+# --- Perfil de Extensão ---
 # A variável $EXT_UUID foi definida e corrigida na Seção 10
 cat > "$DCONF_DB_DIR/02-giusoft-extensions" <<EOF
 [org/gnome/shell]
