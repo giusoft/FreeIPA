@@ -785,8 +785,26 @@ fi
 
 
 # ------------------------------------------------------------
-# 24. Finalização
+# 24. Configura DNS (systemd-resolved)
 # ------------------------------------------------------------
+echo "[INFO] Configurando DNS estático (192.168.1.199) e Domínio (gs.internal)..."
+
+# Cria/substitui o arquivo de configuração do systemd-resolved
+cat > /etc/systemd/resolved.conf <<'EOF'
+[Resolve]
+DNS=192.168.1.199
+FallbackDNS=1.1.1.1
+Domains=gs.internal
+EOF
+
+echo "[INFO] Reiniciando systemd-resolved para aplicar DNS..."
+systemctl restart systemd-resolved
+
+
+# ------------------------------------------------------------
+# 25. Finalização
+# ------------------------------------------------------------
+
 echo ""
 echo "============================================================"
 echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
