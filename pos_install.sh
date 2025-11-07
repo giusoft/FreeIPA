@@ -246,7 +246,8 @@ apt install -y \
     iftop \
     bmon \
     arp-scan \
-    speedtest-cli
+    speedtest-cli \
+    inxi
 
 # ------------------------------------------------------------
 # 12. Configuração do /etc/skel (Lógica do ext.sh - CORRIGIDA)
