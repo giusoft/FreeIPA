@@ -112,7 +112,7 @@ else
 fi
 
 # --- 10b. Definir UUID e caminhos (CORRIGIDOS) ---
-EXT_UUID="hostnameIP_ornan-matos" 
+EXT_UUID="hostnameIP@ornan-matos" 
 EXT_SRC_DIR="$EXT_REPO_DIR/hostnameIP_ornan-matos" 
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID"
