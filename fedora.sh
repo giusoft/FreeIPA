@@ -455,7 +455,7 @@ picture-uri='file://${WALLPAPER_DST}'
 EOF
 
 # Configuração Cron Wallpaper
-echo "0 10 1 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALLPAPER_DST" > /etc/cron.d/giusoft-wallpaper-update
+echo "0 15 2 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALLPAPER_DST" > /etc/cron.d/giusoft-wallpaper-update
 
 if ! grep -q '^user-db:local' /etc/dconf/profile/user 2>/dev/null; then
     cat >/etc/dconf/profile/user <<'EOF'

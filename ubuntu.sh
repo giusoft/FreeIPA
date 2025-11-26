@@ -467,7 +467,7 @@ cat <<EOF > "$LOCK_DIR/00-wallpaper-lock"
 EOF
 
 
-echo "0 10 1 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALL_FILE" > /etc/cron.d/giusoft-wallpaper-update
+echo "0 15 2 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALL_FILE" > /etc/cron.d/giusoft-wallpaper-update
 
 
 GDM_LOGO_SRC="$GIT_REPO_DIR/logo-full.png"
