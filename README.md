@@ -4,16 +4,17 @@ Documenteção e arquivos base de configuração para aplicação de politicas d
   # ====================================
   # LÓGICA PARA NOMEAR MAQUINAS
   # ====================================
-  **Todo o novo precisa esta em letras minusculas.**
+  **O nome do host precisa esta em letras minusculas.**
   
   # Setores: 
-  IMPLANTAÇÃO = implat 
-  PRODUÇÃO = prod 
-  SUPORTE = sup 
-  COMERCIAL = com 
-  ADMINSTRATIVO / RH = admr 
-  DESENVOLVIMENTO = dev 
-  RESERVA = reserv 
+  - IMPLANTAÇÃO = implant 
+  - PRODUÇÃO = prod 
+  - SUPORTE = sup 
+  - COMERCIAL = com 
+  - ADMINSTRATIVO / RH = admr 
+  - DESENVOLVIMENTO = dev 
+  - RESERVA = reserv 
+  - Outros = out
 
   # Tipos de maquinas: 
  Estações de trabalho = p 
