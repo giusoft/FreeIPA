@@ -2,14 +2,14 @@
 # ============================================================
 # Ubuntu 24.04 - Ambiente GiuSoft
 # Autor: Ornan Matos
-# Versão 1.3
+# Versão 1.4 (Com Fix Wallpaper e Rotação Admin @reboot)
 # ============================================================
 
 set -euo pipefail
 LOGFILE="/var/log/pos-instalacao-giusoft.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
-echo "=== Iniciando pós-instalação GiuSoft (Versão 12.2) ==="
+echo "=== Iniciando pós-instalação GiuSoft (Versão 12.2 com Fixes) ==="
 echo "Log será salvo em: $LOGFILE"
 
 # ------------------------------------------------------------
@@ -41,9 +41,13 @@ echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select t
 
 apt update -y
 
-# Clone Repo GiuSoft
+# Clone Repo GiuSoft e Configuração de Segurança
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
 mkdir -p /opt/giusoft
+
+# --- FIX: Configuração de segurança do Git ---
+git config --global --add safe.directory "$GIT_REPO_DIR"
+
 if [ -d "$GIT_REPO_DIR/.git" ]; then
     (cd "$GIT_REPO_DIR" && git pull)
 else
@@ -188,97 +192,7 @@ HIDDEN_APPS=(
     "org.gnome.seahorse.Application.desktop" "python3.12.desktop" "rygel.desktop" "snap-handle-link.desktop"
     "software-properties-drivers.desktop" "software-properties-gtk.desktop" "software-properties-livepatch.desktop"
     "update-manager.desktop" "vim.desktop" "xdg-desktop-portal-gnome.desktop" "xdg-desktop-portal-gtk.desktop"
-    "yelp.desktop"     "apport-gtk.desktop"
-    "bluetooth-sendto.desktop"
-    "gcr-prompter.desktop"
-    "gcr-viewer.desktop"
-    "geoclue-demo-agent.desktop"
-    "gkbd-keyboard-display.desktop"
-    "gnome-about-panel.desktop"
-    "gnome-applications-panel.desktop"
-    "gnome-background-panel.desktop"
-    "gnome-bluetooth-panel.desktop"
-    "gnome-color-panel.desktop"
-    "gnome-datetime-panel.desktop"
-    "gnome-disk-image-mounter.desktop"
-    "gnome-disk-image-writer.desktop"
-    "gnome-display-panel.desktop"
-    "gnome-initial-setup.desktop"
-    "gnome-keyboard-panel.desktop"
-    "gnome-language-selector.desktop"
-    "gnome-mouse-panel.desktop"
-    "gnome-multitasking-panel.desktop"
-    "gnome-network-panel.desktop"
-    "gnome-notifications-panel.desktop"
-    "gnome-online-accounts-panel.desktop"
-    "gnome-power-panel.desktop"
-    "gnome-printers-panel.desktop"
-    "gnome-privacy-panel.desktop"
-    "gnome-region-panel.desktop"
-    "gnome-search-panel.desktop"
-    "gnome-session-properties.desktop"
-    "gnome-sharing-panel.desktop"
-    "gnome-sound-panel.desktop"
-    "gnome-system-monitor-kde.desktop"
-    "gnome-system-panel.desktop"
-    "gnome-ubuntu-panel.desktop"
-    "gnome-universal-access-panel.desktop"
-    "gnome-users-panel.desktop"
-    "gnome-wacom-panel.desktop"
-    "gnome-wifi-panel.desktop"
-    "gnome-wwan-panel.desktop"
-    "hplj1020.desktop"
-    "htop.desktop"
-    "ibus-setup-chewing.desktop"
-    "ibus-setup-libbopomofo.desktop"
-    "ibus-setup-libpinyin.desktop"
-    "ibus-setup-m17n.desktop"
-    "ibus-setup-table.desktop"
-    "im-config.desktop"
-    "info.desktop"
-    "io.snapcraft.SessionAgent.desktop"
-    "libreoffice-startcenter.desktop"
-    "libreoffice-xsltfilter.desktop"
-    "nautilus-autorun-software.desktop"
-    "nm-applet.desktop"
-    "nm-connection-editor.desktop"
-    "nvim.desktop"
-    "org.freedesktop.IBus.Panel.Emojier.desktop"
-    "org.freedesktop.IBus.Panel.Extension.Gtk3.desktop"
-    "org.freedesktop.IBus.Panel.Wayland.Gtk3.desktop"
-    "org.freedesktop.IBus.Setup.desktop"
-    "org.freedesktop.Xwayland.desktop"
-    "org.gnome.Characters.desktop"
-    "org.gnome.DiskUtility.desktop"
-    "org.gnome.Evince-previewer.desktop"
-    "org.gnome.Evince.desktop"
-    "org.gnome.Evolution-alarm-notify.desktop"
-    "org.gnome.Logs.desktop"
-    "org.gnome.OnlineAccounts.OAuth2.desktop"
-    "org.gnome.PowerStats.desktop"
-    "org.gnome.RemoteDesktop.Handover.desktop"
-    "org.gnome.Shell.Extensions.desktop"
-    "org.gnome.Shell.desktop"
-    "org.gnome.SystemMonitor.desktop"
-    "org.gnome.Tecla.desktop"
-    "org.gnome.Terminal.Preferences.desktop"
-    "org.gnome.Zenity.desktop"
-    "org.gnome.baobab.desktop"
-    "org.gnome.eog.desktop"
-    "org.gnome.evolution-data-server.OAuth2-handler.desktop"
-    "org.gnome.font-viewer.desktop"
-    "org.gnome.seahorse.Application.desktop"
-    "python3.12.desktop"
-    "rygel.desktop"
-    "snap-handle-link.desktop"
-    "software-properties-drivers.desktop"
-    "software-properties-gtk.desktop"
-    "software-properties-livepatch.desktop"
-    "update-manager.desktop"
-    "vim.desktop"
-    "xdg-desktop-portal-gnome.desktop"
-    "xdg-desktop-portal-gtk.desktop"
-    "yelp.desktop"
+    "yelp.desktop" "apport-gtk.desktop"
 )
 GLOBAL_OVERRIDE_DIR="/usr/local/share/applications"
 mkdir -p "$GLOBAL_OVERRIDE_DIR"
@@ -308,14 +222,9 @@ cat <<EOF > "/usr/local/bin/update-user-info.sh"
 EXT_UUID="$EXT_UUID"
 
 # --- ALGORITMO DE SENHA BASEADO EM HOST E DATA ---
-# 1. Limpa o hostname
 HOST_CLEAN=\$(hostname | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-
-# 2. Cria uma semente única baseada no checksum do hostname
 HOST_SEED=\$(echo -n "\$HOST_CLEAN" | cksum | cut -f1 -d" ")
 
-# 3. Define os Modelos de Senha (O Hostname faz parte da string)
-# CORREÇÃO: Escapamos \${HOST_CLEAN} para que seja expandido apenas na execução
 SENHAS=(
     "User@\${HOST_CLEAN}#78"
     "Access#\${HOST_CLEAN}!04"
@@ -329,9 +238,7 @@ SENHAS=(
     "Gate@\${HOST_CLEAN}#67"
 )
 
-# 4. Cálculo de Rotação (Modulo 10)
 DIA_DO_ANO=\$(date +%-j)
-# Usa o tamanho do array para o modulo
 INDICE=\$(( (DIA_DO_ANO + HOST_SEED) % 10 ))
 SENHA_DO_DIA="\${SENHAS[\$INDICE]}"
 
@@ -367,7 +274,7 @@ X-GNOME-Autostart-enabled=true
 EOF
 
 # ------------------------------------------------------------
-# 5.1 Configuração 'admings'
+# 5.1 Configuração 'admings' (COM ROTAÇÃO @REBOOT)
 # ------------------------------------------------------------
 
 echo "[INFO] Configurando rotação de senha separada para admings..."
@@ -397,7 +304,6 @@ SENHAS_ADMIN=(
 )
 
 DIA_DO_ANO=$(date +%-j)
-# Correção: Módulo 10 para usar todas as senhas do array
 INDICE=$(( (DIA_DO_ANO + HOST_SEED) % 10 ))
 SENHA_ADMIN_DIA="${SENHAS_ADMIN[$INDICE]}"
 
@@ -406,11 +312,12 @@ echo "admings:$SENHA_ADMIN_DIA" | chpasswd
 EOF
 chmod 700 /usr/local/bin/rotate-admin-pass.sh
 
+# Executa rotação inicial
 /usr/local/bin/rotate-admin-pass.sh
-cat <<'EOF' > /etc/cron.d/giusoft-admin-rotation
-1 0 * * * root /usr/local/bin/rotate-admin-pass.sh
-EOF
 
+cat <<'EOF' > /etc/cron.d/giusoft-admin-rotation
+@reboot root /usr/local/bin/rotate-admin-pass.sh
+EOF
 
 # ------------------------------------------------------------
 # 6. DNS e Rede
@@ -423,31 +330,59 @@ if [ -n "$ACTIVE_ETH" ]; then
 fi
 
 # ------------------------------------------------------------
-# 7. Wallpapers e GDM Logo 
+# 7. Wallpapers e GDM Logo (COM SCRIPT DE UPDATE UNIVERSAL)
 # ------------------------------------------------------------
-echo "[INFO] Configurando e BLOQUEANDO Wallpaper..."
-
+echo "[INFO] Configurando e BLOQUEANDO Wallpaper (Usando script universal)..."
 
 DCONF_DB="/etc/dconf/db/local.d"
 LOCK_DIR="/etc/dconf/db/local.d/locks"
 mkdir -p "$DCONF_DB" "$LOCK_DIR"
 mkdir -p /etc/dconf/profile/
 
-
 echo -e "user-db:user\nsystem-db:local\nsystem-db:site" > /etc/dconf/profile/user
 
+# --- FIX: Criação do script de atualização (Universal) ---
+cat <<EOF > /usr/local/bin/giusoft-update-wallpaper.sh
+#!/bin/bash
+# Script de atualização do Wallpaper GiuSoft (Universal Fedora/Ubuntu)
+
+cd /opt/giusoft/FreeIPA || exit 1
+
+# Garante que não há alterações locais
+git checkout . >/dev/null 2>&1
+
+# Pega o branch atual e atualiza
+CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
+echo "[INFO] Atualizando repositório (Branch: \$CURRENT_BRANCH)..."
+git pull origin "\$CURRENT_BRANCH"
+
+if [ -f "Wallpaper.png" ]; then
+    # --- CAMINHO 1: Padrão Fedora (Mantido para compatibilidade) ---
+    DEST_FEDORA="/usr/share/backgrounds/giusoft/giusoft-wallpaper.png"
+    # (Opcional: mkdir -p no Fedora se necessário, mas aqui foca no Ubuntu)
+    
+    # --- CAMINHO 2: Padrão Ubuntu ---
+    DEST_UBUNTU="/usr/share/backgrounds/giusoft/Wallpaper.png"
+    mkdir -p "\$(dirname "\$DEST_UBUNTU")"
+    cp -f Wallpaper.png "\$DEST_UBUNTU"
+    chmod 644 "\$DEST_UBUNTU"
+
+    echo "[SUCESSO] Imagens atualizadas em: \$(date)"
+else
+    echo "[ERRO] Arquivo Wallpaper.png não encontrado no repositório."
+fi
+EOF
+
+# Permissões
+chmod +x /usr/local/bin/giusoft-update-wallpaper.sh
+
+# Executa agora para configurar o visual imediatamente
+echo "--- Aplicando correção visual agora ---"
+/usr/local/bin/giusoft-update-wallpaper.sh
 
 WALL_FILE="/usr/share/backgrounds/giusoft/Wallpaper.png"
-mkdir -p "$(dirname "$WALL_FILE")"
 
-if [ -f "$GIT_REPO_DIR/Wallpaper.png" ]; then
-    cp -f "$GIT_REPO_DIR/Wallpaper.png" "$WALL_FILE"
-else
-
-    cp /usr/share/backgrounds/warty-final-ubuntu.png "$WALL_FILE" 2>/dev/null || true
-fi
-
-
+# Configuração DCONF (aponta para o arquivo gerenciado pelo script acima)
 cat <<EOF > "$DCONF_DB/01-giusoft-wallpaper"
 [org/gnome/desktop/background]
 picture-uri='file://$WALL_FILE'
@@ -458,7 +393,6 @@ picture-options='zoom'
 picture-uri='file://$WALL_FILE'
 EOF
 
-
 cat <<EOF > "$LOCK_DIR/00-wallpaper-lock"
 /org/gnome/desktop/background/picture-uri
 /org/gnome/desktop/background/picture-uri-dark
@@ -466,10 +400,9 @@ cat <<EOF > "$LOCK_DIR/00-wallpaper-lock"
 /org/gnome/desktop/screensaver/picture-uri
 EOF
 
+echo "0 15 2 * * root /usr/local/bin/giusoft-update-wallpaper.sh" > /etc/cron.d/giusoft-wallpaper-update
 
-echo "0 15 2 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALL_FILE" > /etc/cron.d/giusoft-wallpaper-update
-
-
+# GDM Logo
 GDM_LOGO_SRC="$GIT_REPO_DIR/logo-full.png"
 LOGO_DST="/usr/share/pixmaps/giusoft-gdm-logo.png"
 
@@ -477,14 +410,11 @@ if [ -f "$GDM_LOGO_SRC" ]; then
     cp -f "$GDM_LOGO_SRC" "$LOGO_DST"
     chmod 644 "$LOGO_DST"
     
-
     mkdir -p /etc/dconf/db/gdm.d
     echo -e "user-db:user\nsystem-db:gdm\nfile-db:/usr/share/gdm/greeter-dconf-defaults" > /etc/dconf/profile/gdm
     
-
     echo -e "[org/gnome/login-screen]\nlogo='$LOGO_DST'" > /etc/dconf/db/gdm.d/01-logo
     
-
     [ -d "/usr/share/plymouth/themes/spinner" ] && cp -f "$GDM_LOGO_SRC" /usr/share/plymouth/themes/spinner/watermark.png
 fi
 
