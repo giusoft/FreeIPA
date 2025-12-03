@@ -400,7 +400,7 @@ cat <<EOF > "$LOCK_DIR/00-wallpaper-lock"
 /org/gnome/desktop/screensaver/picture-uri
 EOF
 
-echo "0 15 2 * * root /usr/local/bin/giusoft-update-wallpaper.sh" > /etc/cron.d/giusoft-wallpaper-update
+echo "0 15 2,16 * * root /usr/local/bin/giusoft-update-wallpaper.sh" > /etc/cron.d/giusoft-wallpaper-update
 
 # GDM Logo
 GDM_LOGO_SRC="$GIT_REPO_DIR/logo-full.png"

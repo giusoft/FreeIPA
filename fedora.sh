@@ -2,7 +2,7 @@
 # ============================================================
 # Fedora - Ambiente GiuSoft
 # Autor: Ornan S. Matos 
-# Versão 1.3
+# Versão 1.4 
 # ============================================================
 
 set -euo pipefail
@@ -65,6 +65,10 @@ dnf install -y $DNF_INSTALL_FLAGS google-chrome-stable
 # ------------------------------------------------------------
 GIT_REPO_DIR="/opt/giusoft/FreeIPA"
 mkdir -p /opt/giusoft
+
+# --- Configuração de segurança do Git ---
+git config --global --add safe.directory "$GIT_REPO_DIR"
+
 if [ -d "$GIT_REPO_DIR/.git" ]; then
     (cd "$GIT_REPO_DIR" && git pull)
 else
@@ -239,7 +243,7 @@ dnf install -y $DNF_INSTALL_FLAGS \
     samba cifs-utils ipa-client krb5-workstation \
     gnome-remote-desktop \
     cockpit cockpit-machines cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-pcp pcp-zeroconf \
-    gdm gnome-extensions-app file-roller nautilus evince \
+    gdm gnome-extensions-app file-roller nautilus crond \
     owncloud-client inxi glmark2 fio stress-ng lm_sensors
 
 
@@ -417,9 +421,12 @@ echo "admings:$SENHA_ADMIN_DIA" | chpasswd
 EOF
 chmod 700 /usr/local/bin/rotate-admin-pass.sh
 
+# Executa rotação inicial
 /usr/local/bin/rotate-admin-pass.sh
+
+# --- Adicionado execução diária atráves do reboot---
 cat <<'EOF' > /etc/cron.d/giusoft-admin-rotation
-1 0 * * * root /usr/local/bin/rotate-admin-pass.sh
+@reboot root /usr/local/bin/rotate-admin-pass.sh
 EOF
 
 # ------------------------------------------------------------
@@ -433,13 +440,50 @@ firewall-cmd --reload
 systemctl enable --now sshd
 
 # ------------------------------------------------------------
-# 15. Wallpaper e Dconf
+# 15. Wallpaper e Dconf (COM SCRIPT DE UPDATE UNIVERSAL)
 # ------------------------------------------------------------
-WALLPAPER_SRC_FILE="$GIT_REPO_DIR/Wallpaper.png"
 WALLPAPER_DST="/usr/share/backgrounds/giusoft/giusoft-wallpaper.png"
-
 install -d -m 0755 "$(dirname "$WALLPAPER_DST")"
-[ -f "$WALLPAPER_SRC_FILE" ] && cp -f "$WALLPAPER_SRC_FILE" "$WALLPAPER_DST"
+
+# ---  Criação do script de atualização (Universal) ---
+cat <<EOF > /usr/local/bin/giusoft-update-wallpaper.sh
+#!/bin/bash
+# Script de atualização do Wallpaper GiuSoft (Universal Fedora/Ubuntu)
+
+cd /opt/giusoft/FreeIPA || exit 1
+
+# Garante que não há alterações locais
+git checkout . >/dev/null 2>&1
+
+# Pega o branch atual e atualiza
+CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
+echo "[INFO] Atualizando repositório (Branch: \$CURRENT_BRANCH)..."
+git pull origin "\$CURRENT_BRANCH"
+
+if [ -f "Wallpaper.png" ]; then
+    # --- CAMINHO 1: Padrão Fedora ---
+    DEST_FEDORA="/usr/share/backgrounds/giusoft/giusoft-wallpaper.png"
+    # Cria diretório caso não exista (importante para Fedora)
+    mkdir -p "\$(dirname "\$DEST_FEDORA")"
+    cp -f Wallpaper.png "\$DEST_FEDORA"
+    chmod 644 "\$DEST_FEDORA"
+    
+    # --- CAMINHO 2: Padrão Ubuntu ---
+    DEST_UBUNTU="/usr/share/backgrounds/giusoft/Wallpaper.png"
+    # (Mantido para compatibilidade universal do script)
+    
+    echo "[SUCESSO] Imagens atualizadas em: \$(date)"
+else
+    echo "[ERRO] Arquivo Wallpaper.png não encontrado no repositório."
+fi
+EOF
+
+# Permissões
+chmod +x /usr/local/bin/giusoft-update-wallpaper.sh
+
+# Executa agora para configurar o visual imediatamente
+echo "--- Aplicando correção visual agora ---"
+/usr/local/bin/giusoft-update-wallpaper.sh
 
 install -d -m 0755 /etc/dconf/db/local.d
 install -d -m 0755 /etc/dconf/profile
@@ -454,8 +498,8 @@ picture-options='zoom'
 picture-uri='file://${WALLPAPER_DST}'
 EOF
 
-# Configuração Cron Wallpaper
-echo "0 15 2 * * root cp -f $GIT_REPO_DIR/Wallpaper.png $WALLPAPER_DST" > /etc/cron.d/giusoft-wallpaper-update
+# --- Cron usa o script universal agora ---
+echo "0 15 2,16 * * root /usr/local/bin/giusoft-update-wallpaper.sh" > /etc/cron.d/giusoft-wallpaper-update
 
 if ! grep -q '^user-db:local' /etc/dconf/profile/user 2>/dev/null; then
     cat >/etc/dconf/profile/user <<'EOF'
