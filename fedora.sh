@@ -436,6 +436,9 @@ systemctl enable --now cockpit.socket
 systemctl enable --now firewalld
 firewall-cmd --permanent --add-service=ssh
 firewall-cmd --permanent --add-service=cockpit
+firewall-cmd --permanent --add-service=remote-desktop
+firewall-cmd --permanent --add-port=3389/tcp 
+firewall-cmd --permanent --add-port=3389/udp
 firewall-cmd --reload
 systemctl enable --now sshd
 
