@@ -2,14 +2,14 @@
 # ============================================================
 # Fedora - Ambiente GiuSoft
 # Autor: Ornan S. Matos 
-# Versão 1.4 
+# Versão 1.8 (Nextcloud, Linphone, Regras USB, Polkit e RustDesk Local)
 # ============================================================
 
 set -euo pipefail
 LOGFILE="/var/log/pos-instalacao-giusoft-fedora.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
-echo "=== Iniciando pós-instalação GiuSoft (Fedora - Versão 12.3) ==="
+echo "=== Iniciando pós-instalação GiuSoft (Fedora - Versão 12.5) ==="
 echo "Log será salvo em: $LOGFILE"
 
 # Flag padrão para DNF
@@ -76,13 +76,28 @@ else
 fi
 
 # ------------------------------------------------------------
-# 7. Instala Zoiper 5
+# 7. Instala Linphone (AppImage)
 # ------------------------------------------------------------
-ZOIPER_RPM_PATH="$GIT_REPO_DIR/Zoiper.rpm"
-if [ -f "$ZOIPER_RPM_PATH" ]; then
-    dnf install -y $DNF_INSTALL_FLAGS gtk2 libXScrnSaver ibus-gtk2 libcanberra-gtk2 adwaita-gtk2-theme highcontrast-icon-theme
-    rpm -U --nodigest --nosignature "$ZOIPER_RPM_PATH"
-fi
+echo "[INFO] Instalando Linphone..."
+LINPHONE_APPIMAGE="/opt/giusoft/Linphone-5.3.3.AppImage"
+LINPHONE_ICON="/opt/giusoft/linphone_icon.png"
+
+# Baixa o AppImage e o ícone
+wget -qO "$LINPHONE_APPIMAGE" "https://download.linphone.org/releases/linux/app/Linphone-5.3.3.AppImage"
+chmod +x "$LINPHONE_APPIMAGE"
+wget -qO "$LINPHONE_ICON" "https://images.icon-icons.com/1381/PNG/512/linphone_94743.png"
+
+# Cria o atalho na gaveta de aplicativos
+cat > /usr/share/applications/linphone.desktop <<EOF
+[Desktop Entry]
+Name=Linphone
+Comment=Cliente SIP e VoIP
+Exec=$LINPHONE_APPIMAGE
+Icon=$LINPHONE_ICON
+Terminal=false
+Type=Application
+Categories=Network;Telephony;
+EOF
 
 # ------------------------------------------------------------
 # 8. Instalação da Extensão HostnameIP
@@ -130,9 +145,8 @@ else
 fi
 
 # ------------------------------------------------------------
-# 9. Outras Extensões (Corrigido: Dash-to-Dock/Panel)
+# 9. Outras Extensões
 # ------------------------------------------------------------
-# Instala dependência para tradução (msgfmt)
 dnf install -y $DNF_INSTALL_FLAGS make sassc gettext
 
 # --- Dash-to-Dock ---
@@ -141,7 +155,6 @@ EXT_UUID_D2D="dash-to-dock@micxgx.gmail.com"
 EXT_DEST_SYSLOC="/usr/share/gnome-shell/extensions"
 EXT_D2D_DEST_DIR="$EXT_DEST_SYSLOC/$EXT_UUID_D2D"
 
-# Clone ou Pull
 if [ -d "$EXT_D2D_REPO_DIR/.git" ]; then
     (cd "$EXT_D2D_REPO_DIR" && git pull)
 else
@@ -149,17 +162,11 @@ else
 fi
 
 if [ -d "$EXT_D2D_REPO_DIR" ]; then
-    echo "[INFO] Compilando Dash-to-Dock..."
     (cd "$EXT_D2D_REPO_DIR" && make)
-    
-    echo "[INFO] Instalando Dash-to-Dock..."
     rm -rf "$EXT_D2D_DEST_DIR"
     mkdir -p "$EXT_D2D_DEST_DIR"
-    # Copia todos os arquivos da raiz do repositório
     cp -r "$EXT_D2D_REPO_DIR/"* "$EXT_D2D_DEST_DIR/"
-    # Remove lixo do git da pasta de destino
     rm -rf "$EXT_D2D_DEST_DIR/.git" "$EXT_D2D_DEST_DIR/.github"
-    
     chown -R root:root "$EXT_D2D_DEST_DIR"
     chmod -R 755 "$EXT_D2D_DEST_DIR"
 fi
@@ -176,16 +183,11 @@ else
 fi
 
 if [ -d "$EXT_D2P_REPO_DIR" ]; then
-    echo "[INFO] Compilando Dash-to-Panel..."
     (cd "$EXT_D2P_REPO_DIR" && make)
-    
-    echo "[INFO] Instalando Dash-to-Panel..."
     rm -rf "$EXT_D2P_DEST_DIR"
     mkdir -p "$EXT_D2P_DEST_DIR"
-    # Copia da raiz do repo
     cp -r "$EXT_D2P_REPO_DIR/"* "$EXT_D2P_DEST_DIR/"
     rm -rf "$EXT_D2P_DEST_DIR/.git" "$EXT_D2P_DEST_DIR/.github"
-    
     chown -R root:root "$EXT_D2P_DEST_DIR"
     chmod -R 755 "$EXT_D2P_DEST_DIR"
 fi
@@ -205,7 +207,6 @@ if [ -d "$EXT_PIP_REPO_DIR" ]; then
     mkdir -p "$EXT_PIP_DEST_DIR"
     cp -r "$EXT_PIP_REPO_DIR/"* "$EXT_PIP_DEST_DIR/"
     rm -rf "$EXT_PIP_DEST_DIR/.git"
-    
     chown -R root:root "$EXT_PIP_DEST_DIR"
     if [ -d "$EXT_PIP_DEST_DIR/schemas" ]; then
         glib-compile-schemas "$EXT_PIP_DEST_DIR/schemas"
@@ -213,20 +214,16 @@ if [ -d "$EXT_PIP_REPO_DIR" ]; then
 fi
 
 # ------------------------------------------------------------
-# 10. Repositório OwnCloud Client
+# 10. Instala Nextcloud Desktop Client (Flatpak)
 # ------------------------------------------------------------
-OWNCLOUD_FEDORA_REPO_VERSION="41"
-rpm --import "https://download.owncloud.com/desktop/ownCloud/stable/latest/linux/Fedora_${OWNCLOUD_FEDORA_REPO_VERSION}/repodata/repomd.xml.key"
-dnf4 config-manager --add-repo "https://download.owncloud.com/desktop/ownCloud/stable/latest/linux/Fedora_${OWNCLOUD_FEDORA_REPO_VERSION}/owncloud-client.repo"
-dnf clean all
+echo "[INFO] Instalando Nextcloud via Flatpak..."
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install -y flathub com.nextcloud.desktopclient.nextcloud
 
 # ------------------------------------------------------------
 # 11. Pacotes adicionais
 # ------------------------------------------------------------
 echo "[INFO] Instalando pacotes adicionais..."
-
-# Adiciona Flathub
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
 dnf install -y $DNF_INSTALL_FLAGS \
     vim nano htop tmux zsh bash-completion \
@@ -244,8 +241,7 @@ dnf install -y $DNF_INSTALL_FLAGS \
     gnome-remote-desktop \
     cockpit cockpit-machines cockpit-storaged cockpit-networkmanager cockpit-packagekit cockpit-pcp pcp-zeroconf \
     gdm gnome-extensions-app file-roller nautilus crond \
-    owncloud-client inxi glmark2 fio stress-ng lm_sensors
-
+    inxi glmark2 fio stress-ng lm_sensors
 
 dnf remove -y gnome-tweaks gnome-shell-extension-background-logo
 
@@ -292,7 +288,6 @@ HIDDEN_APPS=(
     "com.github.ADBeveridge.Papers.desktop" "io.bina.Showtime.desktop"
 )
 
-
 GLOBAL_OVERRIDE_DIR="/usr/local/share/applications"
 mkdir -p "$GLOBAL_OVERRIDE_DIR"
 
@@ -310,66 +305,37 @@ for app in "${HIDDEN_APPS[@]}"; do
 done
 update-desktop-database "$GLOBAL_OVERRIDE_DIR"
 
-# mkdir /etc/cron.d/
-
 # ------------------------------------------------------------
-# 13. Configuração da Rotação de Senhas e Extensões
+# 13. Configuração da Rotação de Senhas e Extensões (GNOME RDP)
 # ------------------------------------------------------------
 echo "[INFO] Configurando scripts de rotação de senhas..."
 
-# Script de login (RDP + HostnameIP + Desativar Background Logo)
 cat <<EOF > "/usr/local/bin/update-user-info.sh"
 #!/bin/bash
-
-# Variáveis
 EXT_UUID="hostnameIP@ornan-matos"
 EXT_BG_LOGO="background-logo@fedorahosted.org"
 
-# --- ALGORITMO DE SENHA BASEADO EM HOST E DATA ---
-HOST_CLEAN=\$(hostname | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-HOST_SEED=\$(echo -n "\$HOST_CLEAN" | cksum | cut -f1 -d" ")
-
-# Lista Senhas RDP
-SENHAS=(
-    "User@\${HOST_CLEAN}#78"
-    "Access#\${HOST_CLEAN}!04"
-    "Desk\\$\${HOST_CLEAN}&92"
-    "Remote@\${HOST_CLEAN}#11"
-    "Rdp#\${HOST_CLEAN}!33"
-    "Client\\$\${HOST_CLEAN}&56"
-    "Session@\${HOST_CLEAN}#88"
-    "Net#\${HOST_CLEAN}!21"
-    "Link\\$\${HOST_CLEAN}&43"
-    "Gate@\${HOST_CLEAN}#67"
-)
-
+SENHAS=( "SolLua27" "MarVento84" "PedraRio15" "FogoTerra62" "CactoAreia39" "NuvemCeo48" "MonteVale73" "FolhaTronco21" "LagoIlha56" "RosaJardim90" )
 DIA_DO_ANO=\$(date +%-j)
-# Módulo 10 para usar todas as senhas
-INDICE=\$(( (DIA_DO_ANO + HOST_SEED) % 10 ))
+INDICE=\$(( DIA_DO_ANO % \${#SENHAS[@]} ))
 SENHA_DO_DIA="\${SENHAS[\$INDICE]}"
 
 sleep 5
 
-# -- GESTÃO DE EXTENSÕES --
-# 1. Desativa Background Logo (Padrão Fedora)
 gnome-extensions disable "\$EXT_BG_LOGO" 2>/dev/null || true
-
-# 2. Ativa HostnameIP (Automaticamente)
 gnome-extensions enable "\$EXT_UUID" 2>/dev/null || true
 
-CURRENT_IP=\$(hostname -I | awk '{for(i=1;i<=NF;i++) if (\$i !~ /^127/ && \$i !~ /^172\.17/ && \$i !~ /^172\.18/) {print \$i; exit}}')
-[ -z "\$CURRENT_IP" ] && CURRENT_IP=\$(hostname -I | awk '{print \$1}')
-
-# -- CONFIGURAÇÃO RDP / CONTROLE REMOTO --
 if command -v grdctl >/dev/null 2>&1; then
-    # Define senha rotativa
+    mkdir -p ~/.local/share/gnome-remote-desktop
+    if [ ! -f ~/.local/share/gnome-remote-desktop/rdp-tls.key ]; then
+        openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 -subj "/C=BR/O=GiuSoft/CN=giusoft-rdp" -keyout ~/.local/share/gnome-remote-desktop/rdp-tls.key -out ~/.local/share/gnome-remote-desktop/rdp-tls.crt
+        gsettings set org.gnome.desktop.remote-desktop.rdp tls-key "\$HOME/.local/share/gnome-remote-desktop/rdp-tls.key"
+        gsettings set org.gnome.desktop.remote-desktop.rdp tls-cert "\$HOME/.local/share/gnome-remote-desktop/rdp-tls.crt"
+    fi
+
     grdctl rdp set-credentials "\$USER" "\$SENHA_DO_DIA" || true
-    
-    # GARANTE CONTROLE REMOTO (Não apenas visualização)
     grdctl rdp set-view-only false || true
     gsettings set org.gnome.desktop.remote-desktop.rdp view-only false || true
-    
-    # Ativa RDP
     grdctl rdp enable || true
     systemctl --user restart gnome-remote-desktop.service || true
 fi
@@ -387,44 +353,21 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
 
-# Configuração Admin (admings)
-echo "[INFO] Configurando rotação de senha separada para admings..."
-
 if ! id "admings" &>/dev/null; then
     useradd -m -s /bin/bash -G wheel admings
 fi
 
 cat <<'EOF' > "/usr/local/bin/rotate-admin-pass.sh"
 #!/bin/bash
-
-HOST_CLEAN=$(hostname | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-HOST_SEED=$(echo -n "$HOST_CLEAN" | cksum | cut -f1 -d" ")
-
-SENHAS_ADMIN=(
-    "Root@${HOST_CLEAN}#Master"
-    "Secure#${HOST_CLEAN}!One"
-    "Power\$${HOST_CLEAN}&Adm"
-    "Prime@${HOST_CLEAN}#Sys"
-    "Boss#${HOST_CLEAN}!Mode"
-    "Super\$${HOST_CLEAN}&User"
-    "Key@${HOST_CLEAN}#Admin"
-    "Ultra#${HOST_CLEAN}!Core"
-    "Mega\$${HOST_CLEAN}&Root"
-    "Alpha@${HOST_CLEAN}#Access"
-)
-
+SENHAS_ADMIN=( "LeaoTigre14" "FerroAco67" "CobrePrata52" "LivroPapel31" "MesaCadeira88" "MotorRoda46" "JanelaPorta79" "TeclaMouse23" "TelaCabo64" "BalaFoguete95" )
 DIA_DO_ANO=$(date +%-j)
-INDICE=$(( (DIA_DO_ANO + HOST_SEED) % 10 ))
+INDICE=$(( DIA_DO_ANO % ${#SENHAS_ADMIN[@]} ))
 SENHA_ADMIN_DIA="${SENHAS_ADMIN[$INDICE]}"
-
 echo "admings:$SENHA_ADMIN_DIA" | chpasswd
 EOF
 chmod 700 /usr/local/bin/rotate-admin-pass.sh
-
-# Executa rotação inicial
 /usr/local/bin/rotate-admin-pass.sh
 
-# --- Adicionado execução diária atráves do reboot---
 cat <<'EOF' > /etc/cron.d/giusoft-admin-rotation
 @reboot root /usr/local/bin/rotate-admin-pass.sh
 EOF
@@ -436,56 +379,31 @@ systemctl enable --now cockpit.socket
 systemctl enable --now firewalld
 firewall-cmd --permanent --add-service=ssh
 firewall-cmd --permanent --add-service=cockpit
-firewall-cmd --permanent --add-service=remote-desktop
 firewall-cmd --permanent --add-port=3389/tcp 
 firewall-cmd --permanent --add-port=3389/udp
 firewall-cmd --reload
 systemctl enable --now sshd
 
 # ------------------------------------------------------------
-# 15. Wallpaper e Dconf (COM SCRIPT DE UPDATE UNIVERSAL)
+# 15. Wallpaper e Dconf (Script Universal)
 # ------------------------------------------------------------
 WALLPAPER_DST="/usr/share/backgrounds/giusoft/giusoft-wallpaper.png"
 install -d -m 0755 "$(dirname "$WALLPAPER_DST")"
 
-# ---  Criação do script de atualização (Universal) ---
 cat <<EOF > /usr/local/bin/giusoft-update-wallpaper.sh
 #!/bin/bash
-# Script de atualização do Wallpaper GiuSoft (Universal Fedora/Ubuntu)
-
 cd /opt/giusoft/FreeIPA || exit 1
-
-# Garante que não há alterações locais
 git checkout . >/dev/null 2>&1
-
-# Pega o branch atual e atualiza
 CURRENT_BRANCH=\$(git rev-parse --abbrev-ref HEAD)
-echo "[INFO] Atualizando repositório (Branch: \$CURRENT_BRANCH)..."
 git pull origin "\$CURRENT_BRANCH"
-
 if [ -f "Wallpaper.png" ]; then
-    # --- CAMINHO 1: Padrão Fedora ---
     DEST_FEDORA="/usr/share/backgrounds/giusoft/giusoft-wallpaper.png"
-    # Cria diretório caso não exista (importante para Fedora)
     mkdir -p "\$(dirname "\$DEST_FEDORA")"
     cp -f Wallpaper.png "\$DEST_FEDORA"
     chmod 644 "\$DEST_FEDORA"
-    
-    # --- CAMINHO 2: Padrão Ubuntu ---
-    DEST_UBUNTU="/usr/share/backgrounds/giusoft/Wallpaper.png"
-    # (Mantido para compatibilidade universal do script)
-    
-    echo "[SUCESSO] Imagens atualizadas em: \$(date)"
-else
-    echo "[ERRO] Arquivo Wallpaper.png não encontrado no repositório."
 fi
 EOF
-
-# Permissões
 chmod +x /usr/local/bin/giusoft-update-wallpaper.sh
-
-# Executa agora para configurar o visual imediatamente
-echo "--- Aplicando correção visual agora ---"
 /usr/local/bin/giusoft-update-wallpaper.sh
 
 install -d -m 0755 /etc/dconf/db/local.d
@@ -496,12 +414,10 @@ cat >/etc/dconf/db/local.d/01-giusoft-wallpaper <<EOF
 picture-uri='file://${WALLPAPER_DST}'
 picture-uri-dark='file://${WALLPAPER_DST}'
 picture-options='zoom'
-
 [org/gnome/desktop/screensaver]
 picture-uri='file://${WALLPAPER_DST}'
 EOF
 
-# --- Cron usa o script universal agora ---
 echo "0 15 2,16 * * root /usr/local/bin/giusoft-update-wallpaper.sh" > /etc/cron.d/giusoft-wallpaper-update
 
 if ! grep -q '^user-db:local' /etc/dconf/profile/user 2>/dev/null; then
@@ -512,7 +428,6 @@ system-db:local
 EOF
 fi
 
-# Energia (Disable suspend)
 cat >/etc/dconf/db/local.d/02-giusoft-power <<EOF
 [org/gnome/settings-daemon/plugins/power]
 sleep-inactive-ac-timeout=0
@@ -525,9 +440,7 @@ EOF
 # 16. Logo do GDM
 # ------------------------------------------------------------
 GDM_LOGO_SRC_FILE="$GIT_REPO_DIR/logo-full.png"
-
 [ ! -f "$GDM_LOGO_SRC_FILE" ] && GDM_LOGO_SRC_FILE="$GIT_REPO_DIR/logo-gdm.png"
-
 LOGO_DST="/usr/share/pixmaps/giusoft-gdm-logo.png"
 
 if [ -f "$GDM_LOGO_SRC_FILE" ]; then
@@ -544,9 +457,6 @@ EOF
 [org/gnome/login-screen]
 logo='${LOGO_DST}'
 EOF
-    
-
-    [ -d "/usr/share/plymouth/themes/spinner" ] && cp -f "$GDM_LOGO_SRC_FILE" /usr/share/plymouth/themes/spinner/watermark.png
 fi
 
 # ------------------------------------------------------------
@@ -570,8 +480,6 @@ cat >/etc/dconf/db/local.d/locks/00-giusoft-locks <<EOF
 /org/gnome/desktop/screensaver/picture-uri
 /org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-timeout
 /org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
-/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-timeout
-/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
 /org/gnome/shell/app-picker-sort-order
 /org/gnome/desktop/wm/preferences/button-layout
 EOF
@@ -581,27 +489,72 @@ dconf update
 # ------------------------------------------------------------
 # 18. DNS e Rede
 # ------------------------------------------------------------
-ACTIVE_ETH=$(nmcli -t -f UUID,TYPE connection show | grep "802-3-ethernet" | cut -d: -f1 | head -n1 || true)
-if [ -n "$ACTIVE_ETH" ]; then
-    echo "[INFO] Configurando DNS ETH via nmcli (Paridade Ubuntu): $ACTIVE_ETH"
-    nmcli connection modify "$ACTIVE_ETH" ipv4.dns "192.168.1.199 1.1.1.1" ipv4.ignore-auto-dns yes ipv4.dns-search "gs.internal"
-    nmcli connection up "$ACTIVE_ETH" || true
-else
-    # Fallback para systemd-resolved se nenhuma interface estiver ativa ainda
-    RESOLVED_CONF="/etc/systemd/resolved.conf"
-    if [ -f "$RESOLVED_CONF" ]; then
-        sed -i "s/^#DNS=.*/DNS=192.168.1.199/" "$RESOLVED_CONF"
-        sed -i "s/^#FallbackDNS=.*/FallbackDNS=1.1.1.1 8.8.8.8/" "$RESOLVED_CONF"
-        sed -i "s/^#Domains=.*/Domains=gs.internal/" "$RESOLVED_CONF"
-        systemctl restart systemd-resolved || true
-    fi
+echo "[INFO] Configurando DNS e Domínio para TODAS as conexões..."
+
+# 1. Aplica as configurações em todas as conexões existentes no NetworkManager
+for conn in $(nmcli -t -f UUID connection show); do
+    nmcli connection modify "$conn" \
+        ipv4.dns "192.168.1.199 1.1.1.1" \
+        ipv4.ignore-auto-dns yes \
+        ipv4.dns-search "gs.internal"
+    
+    # Reinicia a conexão de forma silenciosa para aplicar as mudanças
+    nmcli connection up "$conn" >/dev/null 2>&1 || true
+done
+
+# 2. Configura o systemd-resolved como padrão global (para conexões futuras)
+RESOLVED_CONF="/etc/systemd/resolved.conf"
+if [ -f "$RESOLVED_CONF" ]; then
+    # O regex '^[#]*' garante a substituição mesmo se as linhas já estiverem descomentadas
+    sed -i 's/^[#]*DNS=.*/DNS=192.168.1.199 1.1.1.1/' "$RESOLVED_CONF"
+    sed -i 's/^[#]*FallbackDNS=.*/FallbackDNS=8.8.8.8/' "$RESOLVED_CONF"
+    sed -i 's/^[#]*Domains=.*/Domains=gs.internal/' "$RESOLVED_CONF"
+    systemctl restart systemd-resolved || true
 fi
 
-# ------------------------------------------------------------
-# 19. Finalização
-# ------------------------------------------------------------
 
-# Bloqueio de configuração manual do RDP via GUI
+# ------------------------------------------------------------
+# 19. Permissões de USB e Polkit (Grupo Implant/Powerusers)
+# ------------------------------------------------------------
+echo "[INFO] Configurando permissões USB e regras Polkit..."
+
+groupadd -f implant
+groupadd -f powerusers
+groupadd -f admins
+
+cat <<EOF > /etc/udev/rules.d/99-implant-usb.rules
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", GROUP="implant", MODE="0664"
+SUBSYSTEM=="tty", KERNEL=="ttyUSB*|ttyACM*", GROUP="implant", MODE="0660"
+EOF
+udevadm control --reload-rules || true
+udevadm trigger || true
+
+flatpak override --system --device=all || true
+
+cat <<'EOF' > /etc/polkit-1/rules.d/10-giusoft-powerusers.rules
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("admins") || subject.isInGroup("powerusers") || subject.isInGroup("implant")) {
+        if (action.id.indexOf("org.opensuse.cupspkhelper.mechanism.") == 0 ||
+            action.id == "org.fedoraproject.config.printer.configure") {
+            return polkit.Result.YES;
+        }
+        if (action.id.indexOf("org.freedesktop.udisks2.") == 0) {
+            return polkit.Result.YES;
+        }
+        if (action.id.indexOf("org.kde.kpmcore.") == 0) {
+            return polkit.Result.YES;
+        }
+        if (action.id.indexOf("com.raspberrypi.rpi-imager.") == 0 || 
+            action.id.indexOf("org.raspberrypi.rpi-imager.") == 0) {
+            return polkit.Result.YES;
+        }
+    }
+});
+EOF
+
+# ------------------------------------------------------------
+# 20. Bloqueio Manual do GNOME RDP
+# ------------------------------------------------------------
 cat <<EOF > /etc/polkit-1/rules.d/61-restrict-remote-desktop.rules
 polkit.addRule(function(action, subject) {
     if (action.id == "org.gnome.RemoteDesktop.configure") { return polkit.Result.AUTH_ADMIN; }
@@ -609,11 +562,98 @@ polkit.addRule(function(action, subject) {
 EOF
 systemctl restart polkit || true
 
+# ------------------------------------------------------------
+# 21. Instalação e Configuração do RustDesk (Acesso Remoto TI)
+# ------------------------------------------------------------
+echo "[INFO] Verificando/Instalando RustDesk para Suporte Remoto Local..."
+RUSTDESK_URL="https://github.com/rustdesk/rustdesk/releases/download/1.4.6/rustdesk-1.4.6-0.x86_64.rpm"
+RUSTDESK_TMP="/tmp/rustdesk.rpm"
+
+# Verifica se já está instalado para pular o download
+if ! command -v rustdesk >/dev/null 2>&1; then
+    echo "[INFO] Aguardando a rede estabilizar antes do download..."
+    # Loop para garantir que a internet voltou após a reinicialização do DNS
+    for i in {1..15}; do
+        if ping -c 1 8.8.8.8 >/dev/null 2>&1 || ping -c 1 1.1.1.1 >/dev/null 2>&1; then
+            echo "[INFO] Conexão com a internet confirmada."
+            break
+        fi
+        sleep 2
+    done
+
+    echo "[INFO] Baixando RustDesk..."
+    # 'wget' configurado para tentar 5 vezes com timeout prolongado 
+    wget --tries=5 --timeout=15 --waitretry=3 -qO "$RUSTDESK_TMP" "$RUSTDESK_URL" || true
+    
+    # Valida se o ficheiro baixado existe e não está vazio (-s)
+    if [ -s "$RUSTDESK_TMP" ]; then
+        dnf install -y "$RUSTDESK_TMP" || true
+        rm -f "$RUSTDESK_TMP"
+    else
+        echo "[ERRO] Falha ao baixar o arquivo do RustDesk. O arquivo está ausente ou vazio."
+    fi
+else
+    echo "[INFO] RustDesk já instalado. Pulando etapa de instalação."
+fi
+
+# Executa as configurações independentemente de ter acabado de instalar ou já estar presente
+if command -v rustdesk >/dev/null 2>&1; then
+    echo "[INFO] Aplicando configurações do RustDesk..."
+    
+    # 1. Libera portas para Conexão Local Direta (Direct IP Access)
+    firewall-cmd --permanent --add-port=21118-21119/tcp || true
+    firewall-cmd --reload || true
+    
+    # 2. Força o Direct IP Access no arquivo do serviço (como root)
+    RUSTDESK_CONF="/etc/rustdesk/RustDesk2.toml"
+    mkdir -p /etc/rustdesk
+    touch "$RUSTDESK_CONF"
+    if ! grep -q "direct-server" "$RUSTDESK_CONF"; then
+        echo "direct-server = 'Y'" >> "$RUSTDESK_CONF"
+    else
+        sed -i "s/direct-server.*/direct-server = 'Y'/g" "$RUSTDESK_CONF"
+    fi
+    
+    # 3. Inicia e reinicia o serviço
+    systemctl enable --now rustdesk || true
+    systemctl restart rustdesk || true
+    sleep 3
+    
+    # 4. Define a Senha Permanente via CLI (o '|| true' evita que o script morra se não houver display ativo)
+    rustdesk --password "GiuSoft@Admin" || echo "[AVISO] Definição de senha via CLI retornou erro não fatal. Prosseguindo..."
+
+    # 5. Propaga as configurações para TODOS os usuários (existentes e futuros)
+    echo "[INFO] Sincronizando configurações do RustDesk para todos os perfis..."
+    for USER_HOME in /home/* /etc/skel; do
+        if [ -d "$USER_HOME" ]; then
+            USER_RUST_DIR="$USER_HOME/.config/rustdesk"
+            mkdir -p "$USER_RUST_DIR"
+            
+            # Copia a config principal com o direct-server
+            cp -f "$RUSTDESK_CONF" "$USER_RUST_DIR/RustDesk2.toml" || true
+            
+            # Se o comando da senha gerou hashes no perfil do root, replica para os usuários
+            if [ -d "/root/.config/rustdesk" ]; then
+                cp -f /root/.config/rustdesk/*.toml "$USER_RUST_DIR/" 2>/dev/null || true
+            fi
+            
+            # Ajusta permissões se for um diretório de usuário real (ignora o /etc/skel)
+            if [[ "$USER_HOME" != "/etc/skel" ]]; then
+                OWNER=$(basename "$USER_HOME")
+                chown -R "$OWNER":"$OWNER" "$USER_RUST_DIR" || true
+            fi
+        fi
+    done
+
+    echo "[SUCESSO] RustDesk configurado para IP Local em todos os usuários!"
+else
+    echo "[ERRO] RustDesk não encontrado no sistema para configurar."
+fi
+
 echo ""
 echo "============================================================"
 echo "[FINALIZADO] Script de pós-instalação GiuSoft concluído."
-echo "Log salvo em: $LOGFILE"
-echo "IMPORTANTE: REINICIE O COMPUTADOR para que todas as alterações (dconf, autostart, skel, logo GDM) tenham efeito."
+echo "IMPORTANTE: REINICIE O COMPUTADOR para aplicar tudo."
 echo "============================================================"
 echo ""
 echo "Próximos passos manuais recomendados:"
@@ -634,4 +674,5 @@ echo "     --enable-dns-updates"
 echo ""
 echo "2. Adicione usuários ao grupo 'powerusers' (se necessário):"
 echo "   sudo usermod -aG powerusers nome_do_usuario"
+echo "------------------------------------------------------------"
 echo "------------------------------------------------------------"
